@@ -2,7 +2,8 @@
  * Custom logger that respects dev/prod environments.
  */
 
-const isDev = import.meta.env.DEV;
+// Use bracket notation to safely access env property during testing/builds without TS errors
+const isDev = typeof import.meta !== 'undefined' && (import.meta as any)['env'] ? (import.meta as any)['env'].DEV : true;
 
 export const logger = {
   log: (...args: unknown[]) => {
