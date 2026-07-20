@@ -1,0 +1,2673 @@
+{
+  "generator": "Three.js Editor Skeleton Exporter",
+  "pose_description":"right hand down to side and left hand forward with thumbs up"
+  "rig_name": "mixamorig",
+  "total_joints": 65,
+  "joints": [
+    {
+      "name": "mixamorigHips",
+      "parent": null,
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 1.5543,
+          "z": -104.2749
+        },
+        "rotationEuler": {
+          "x": -1.5579,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": -0.7025,
+          "y": 0,
+          "z": 0,
+          "w": 0.7117
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0,
+          "y": 1.0427,
+          "z": 0.0155
+        },
+        "quaternion": {
+          "x": 0.0065,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        }
+      }
+    },
+    {
+      "name": "mixamorigSpine",
+      "parent": "mixamorigHips",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 10.1824,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": -0.1605,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": -0.0802,
+          "y": 0,
+          "z": 0,
+          "w": 0.9968
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0,
+          "y": 1.1446,
+          "z": 0.0169
+        },
+        "quaternion": {
+          "x": -0.0737,
+          "y": 0,
+          "z": 0,
+          "w": 0.9973
+        }
+      }
+    },
+    {
+      "name": "mixamorigSpine1",
+      "parent": "mixamorigSpine",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 10.0027,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0,
+          "y": 1.2435,
+          "z": 0.0022
+        },
+        "quaternion": {
+          "x": -0.0737,
+          "y": 0,
+          "z": 0,
+          "w": 0.9973
+        }
+      }
+    },
+    {
+      "name": "mixamorigSpine2",
+      "parent": "mixamorigSpine1",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 9.3221,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.0258,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.0129,
+          "y": 0,
+          "z": 0,
+          "w": 0.9999
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0,
+          "y": 1.3357,
+          "z": -0.0116
+        },
+        "quaternion": {
+          "x": -0.0609,
+          "y": 0,
+          "z": 0,
+          "w": 0.9981
+        }
+      }
+    },
+    {
+      "name": "mixamorigNeck",
+      "parent": "mixamorigSpine2",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 16.8653,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0,
+          "y": 1.5031,
+          "z": -0.032
+        },
+        "quaternion": {
+          "x": -0.0609,
+          "y": 0,
+          "z": 0,
+          "w": 0.9981
+        }
+      }
+    },
+    {
+      "name": "mixamorigHead",
+      "parent": "mixamorigNeck",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 9.3419,
+          "z": 2.841
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0,
+          "y": 1.5993,
+          "z": -0.0152
+        },
+        "quaternion": {
+          "x": -0.0609,
+          "y": 0,
+          "z": 0,
+          "w": 0.9981
+        }
+      }
+    },
+    {
+      "name": "mixamorigHeadTop_End",
+      "parent": "mixamorigHead",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 20.9628,
+          "z": 10.1229
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0,
+          "y": 1.8197,
+          "z": 0.0598
+        },
+        "quaternion": {
+          "x": -0.0609,
+          "y": 0,
+          "z": 0,
+          "w": 0.9981
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightShoulder",
+      "parent": "mixamorigSpine2",
+      "local": {
+        "position": {
+          "x": -4.57,
+          "y": 11.1958,
+          "z": -0.8066
+        },
+        "rotationEuler": {
+          "x": 1.6926,
+          "y": 0.0495,
+          "z": 1.7782,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.4844,
+          "y": -0.571,
+          "z": 0.5262,
+          "w": 0.4031
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.0457,
+          "y": 1.4459,
+          "z": -0.0332
+        },
+        "quaternion": {
+          "x": 0.459,
+          "y": -0.5379,
+          "z": 0.5599,
+          "w": 0.4318
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightArm",
+      "parent": "mixamorigRightShoulder",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 10.8382,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 1.292,
+          "y": -0.1996,
+          "z": -0.0567,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.601,
+          "y": -0.0626,
+          "z": -0.0825,
+          "w": 0.7925
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.1516,
+          "y": 1.4406,
+          "z": -0.0555
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.0789,
+          "z": 0.7027,
+          "w": 0.0789
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightForeArm",
+      "parent": "mixamorigRightArm",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 27.8415,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.2134,
+          "y": 1.1691,
+          "z": -0.0555
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.0789,
+          "z": 0.7027,
+          "w": 0.0789
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHand",
+      "parent": "mixamorigRightForeArm",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 28.3288,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.2762,
+          "y": 0.8929,
+          "z": -0.0555
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.0789,
+          "z": 0.7027,
+          "w": 0.0789
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandThumb1",
+      "parent": "mixamorigRightHand",
+      "local": {
+        "position": {
+          "x": 2.6819,
+          "y": 2.4648,
+          "z": 1.574
+        },
+        "rotationEuler": {
+          "x": 0.5274,
+          "y": 0,
+          "z": -0.4773,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.2533,
+          "y": 0.0616,
+          "z": -0.2282,
+          "w": 0.9381
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.2663,
+          "y": 0.8654,
+          "z": -0.0287
+        },
+        "quaternion": {
+          "x": 0.6539,
+          "y": 0.2692,
+          "z": 0.7044,
+          "w": 0.0613
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandThumb2",
+      "parent": "mixamorigRightHandThumb1",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 4.189,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": -0.0046,
+          "y": -0.0024,
+          "z": 0.0186,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": -0.0023,
+          "y": -0.0012,
+          "z": 0.0093,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.2552,
+          "y": 0.8299,
+          "z": -0.0094
+        },
+        "quaternion": {
+          "x": 0.657,
+          "y": 0.2614,
+          "z": 0.7048,
+          "w": 0.0565
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandThumb3",
+      "parent": "mixamorigRightHandThumb2",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 3.4163,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": -0.0033,
+          "y": -0.0016,
+          "z": 0.0138,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": -0.0017,
+          "y": -0.0008,
+          "z": 0.0069,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.2462,
+          "y": 0.8006,
+          "z": 0.0057
+        },
+        "quaternion": {
+          "x": 0.6593,
+          "y": 0.2556,
+          "z": 0.7051,
+          "w": 0.053
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandThumb4",
+      "parent": "mixamorigRightHandThumb3",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.575,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": -0.2358,
+          "z": -0.0982,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.0058,
+          "y": -0.1175,
+          "z": -0.0487,
+          "w": 0.9919
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.2394,
+          "y": 0.7784,
+          "z": 0.0168
+        },
+        "quaternion": {
+          "x": 0.7246,
+          "y": 0.2835,
+          "z": 0.6178,
+          "w": 0.1131
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandIndex1",
+      "parent": "mixamorigRightHand",
+      "local": {
+        "position": {
+          "x": 2.2598,
+          "y": 9.1083,
+          "z": 0.5179
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0003,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0002,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.2914,
+          "y": 0.8029,
+          "z": -0.0329
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.0788,
+          "z": 0.7027,
+          "w": 0.079
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandIndex2",
+      "parent": "mixamorigRightHandIndex1",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 3.7,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0.0005,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0.0003,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.2996,
+          "y": 0.7669,
+          "z": -0.0329
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.079,
+          "z": 0.7027,
+          "w": 0.0788
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandIndex3",
+      "parent": "mixamorigRightHandIndex2",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.85,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0002,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0001,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.3059,
+          "y": 0.7391,
+          "z": -0.0329
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.0789,
+          "z": 0.7027,
+          "w": 0.0789
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandIndex4",
+      "parent": "mixamorigRightHandIndex3",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.7722,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0.002,
+          "z": 0.0002,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.001,
+          "z": 0.0001,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.312,
+          "y": 0.712,
+          "z": -0.0329
+        },
+        "quaternion": {
+          "x": 0.702,
+          "y": -0.0789,
+          "z": 0.7034,
+          "w": 0.0789
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandMiddle1",
+      "parent": "mixamorigRightHand",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 9.5325,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": -0.001,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0005,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.2973,
+          "y": 0.7999,
+          "z": -0.0555
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.0786,
+          "z": 0.7027,
+          "w": 0.0793
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandMiddle2",
+      "parent": "mixamorigRightHandMiddle1",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 3.7,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0.0017,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0.0008,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.3056,
+          "y": 0.7639,
+          "z": -0.0554
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.0792,
+          "z": 0.7027,
+          "w": 0.0787
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandMiddle3",
+      "parent": "mixamorigRightHandMiddle2",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.95,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0006,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0003,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.3121,
+          "y": 0.7351,
+          "z": -0.0555
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.0789,
+          "z": 0.7027,
+          "w": 0.0789
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandMiddle4",
+      "parent": "mixamorigRightHandMiddle3",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.9466,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0.0019,
+          "z": 0.0003,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.0009,
+          "z": 0.0002,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.3186,
+          "y": 0.7064,
+          "z": -0.0555
+        },
+        "quaternion": {
+          "x": 0.702,
+          "y": -0.079,
+          "z": 0.7034,
+          "w": 0.0788
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandRing1",
+      "parent": "mixamorigRightHand",
+      "local": {
+        "position": {
+          "x": -1.8651,
+          "y": 9.1036,
+          "z": 0.0431
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0.0003,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0.0002,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.296,
+          "y": 0.804,
+          "z": -0.0741
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.079,
+          "z": 0.7027,
+          "w": 0.0788
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandRing2",
+      "parent": "mixamorigRightHandRing1",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 3.3793,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0004,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0002,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.3035,
+          "y": 0.7711,
+          "z": -0.0741
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.0789,
+          "z": 0.7027,
+          "w": 0.079
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandRing3",
+      "parent": "mixamorigRightHandRing2",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.8897,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0002,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0001,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.3099,
+          "y": 0.7429,
+          "z": -0.0741
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.0788,
+          "z": 0.7027,
+          "w": 0.079
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandRing4",
+      "parent": "mixamorigRightHandRing3",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.6388,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0.0003,
+          "z": -0.0016,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.0001,
+          "z": -0.0008,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.3157,
+          "y": 0.7172,
+          "z": -0.0741
+        },
+        "quaternion": {
+          "x": 0.7027,
+          "y": -0.0782,
+          "z": 0.7027,
+          "w": 0.0796
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandPinky1",
+      "parent": "mixamorigRightHand",
+      "local": {
+        "position": {
+          "x": -3.8063,
+          "y": 8.0767,
+          "z": 0.4867
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0.001,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0.0005,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.2894,
+          "y": 0.8131,
+          "z": -0.0935
+        },
+        "quaternion": {
+          "x": 0.7026,
+          "y": -0.0793,
+          "z": 0.7027,
+          "w": 0.0785
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandPinky2",
+      "parent": "mixamorigRightHandPinky1",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 3.6,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0.0017,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0.0008,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.2974,
+          "y": 0.778,
+          "z": -0.0936
+        },
+        "quaternion": {
+          "x": 0.7026,
+          "y": -0.0799,
+          "z": 0.7028,
+          "w": 0.0779
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandPinky3",
+      "parent": "mixamorigRightHandPinky2",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.1,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": -0.001,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": -0.0005,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.302,
+          "y": 0.7575,
+          "z": -0.0936
+        },
+        "quaternion": {
+          "x": 0.7026,
+          "y": -0.0795,
+          "z": 0.7028,
+          "w": 0.0783
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightHandPinky4",
+      "parent": "mixamorigRightHandPinky3",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.1158,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0.0031,
+          "z": -0.0001,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.0016,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.3067,
+          "y": 0.7369,
+          "z": -0.0937
+        },
+        "quaternion": {
+          "x": 0.7015,
+          "y": -0.0794,
+          "z": 0.7039,
+          "w": 0.0784
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftShoulder",
+      "parent": "mixamorigSpine2",
+      "local": {
+        "position": {
+          "x": 4.5704,
+          "y": 11.1957,
+          "z": -0.8066
+        },
+        "rotationEuler": {
+          "x": 1.6926,
+          "y": -0.0495,
+          "z": -1.7782,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.4844,
+          "y": 0.571,
+          "z": -0.5262,
+          "w": 0.4031
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.0457,
+          "y": 1.4459,
+          "z": -0.0332
+        },
+        "quaternion": {
+          "x": -0.459,
+          "y": -0.5379,
+          "z": 0.5599,
+          "w": -0.4318
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftArm",
+      "parent": "mixamorigLeftShoulder",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 10.8377,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.1267,
+          "y": -0.1291,
+          "z": 1.5444,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.0003,
+          "y": -0.0902,
+          "z": 0.6919,
+          "w": 0.7163
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.1516,
+          "y": 1.4406,
+          "z": -0.0555
+        },
+        "quaternion": {
+          "x": 0.6506,
+          "y": 0.0286,
+          "z": -0.1439,
+          "w": 0.7451
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftForeArm",
+      "parent": "mixamorigLeftArm",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 27.8415,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2217,
+          "y": 1.4718,
+          "z": 0.2122
+        },
+        "quaternion": {
+          "x": 0.6506,
+          "y": 0.0286,
+          "z": -0.1439,
+          "w": 0.7451
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHand",
+      "parent": "mixamorigLeftForeArm",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 28.3288,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.2671,
+          "y": -1.0787,
+          "z": -0.0276,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.1213,
+          "y": -0.5074,
+          "z": -0.0801,
+          "w": 0.8494
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.293,
+          "y": 1.5036,
+          "z": 0.4845
+        },
+        "quaternion": {
+          "x": 0.5677,
+          "y": -0.3191,
+          "z": -0.5155,
+          "w": 0.5569
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandThumb1",
+      "parent": "mixamorigLeftHand",
+      "local": {
+        "position": {
+          "x": -2.6817,
+          "y": 2.4661,
+          "z": 1.5762
+        },
+        "rotationEuler": {
+          "x": 1.0434,
+          "y": -0.1591,
+          "z": 1.6504,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.2864,
+          "y": -0.4117,
+          "z": 0.6081,
+          "w": 0.6154
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2763,
+          "y": 1.5196,
+          "z": 0.5168
+        },
+        "quaternion": {
+          "x": -0.1026,
+          "y": 0.9185,
+          "z": 0.1209,
+          "w": -0.3622
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandThumb2",
+      "parent": "mixamorigLeftHandThumb1",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 4.1871,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.3039,
+          "y": -0.9861,
+          "z": -0.0213,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.1383,
+          "y": -0.4664,
+          "z": -0.0809,
+          "w": 0.8699
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.272,
+          "y": 1.5593,
+          "z": 0.5292
+        },
+        "quaternion": {
+          "x": -0.1572,
+          "y": 0.9764,
+          "z": 0.0553,
+          "w": 0.1372
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandThumb3",
+      "parent": "mixamorigLeftHandThumb2",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 3.4184,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": -0.0031,
+          "y": 0.0015,
+          "z": -0.0121,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": -0.0015,
+          "y": 0.0007,
+          "z": -0.0061,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.261,
+          "y": 1.5916,
+          "z": 0.5314
+        },
+        "quaternion": {
+          "x": -0.1634,
+          "y": 0.9755,
+          "z": 0.0558,
+          "w": 0.1366
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandThumb4",
+      "parent": "mixamorigLeftHandThumb3",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.5806,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0.2462,
+          "z": 0.084,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.0052,
+          "y": 0.1227,
+          "z": 0.0417,
+          "w": 0.9916
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2524,
+          "y": 1.6159,
+          "z": 0.533
+        },
+        "quaternion": {
+          "x": -0.1275,
+          "y": 0.9911,
+          "z": 0.036,
+          "w": 0.0143
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandIndex1",
+      "parent": "mixamorigLeftHand",
+      "local": {
+        "position": {
+          "x": -2.2599,
+          "y": 9.1093,
+          "z": 0.518
+        },
+        "rotationEuler": {
+          "x": 1.3122,
+          "y": 0.4266,
+          "z": 0.177,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.6087,
+          "y": 0.1144,
+          "z": 0.1971,
+          "w": 0.76
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.3014,
+          "y": 1.5071,
+          "z": 0.578
+        },
+        "quaternion": {
+          "x": 0.7665,
+          "y": -0.6045,
+          "z": -0.0228,
+          "w": 0.2158
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandIndex2",
+      "parent": "mixamorigLeftHandIndex1",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 3.7,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.6592,
+          "y": 0.1865,
+          "z": 0.1623,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.3283,
+          "y": 0.0617,
+          "z": 0.1064,
+          "w": 0.9365
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2675,
+          "y": 1.5006,
+          "z": 0.5913
+        },
+        "quaternion": {
+          "x": 0.7258,
+          "y": -0.6419,
+          "z": 0.2473,
+          "w": -0.0098
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandIndex3",
+      "parent": "mixamorigLeftHandIndex2",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.85,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 1.5242,
+          "y": 0.4956,
+          "z": 0.1469,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.6806,
+          "y": 0.1278,
+          "z": 0.2204,
+          "w": 0.687
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2411,
+          "y": 1.4956,
+          "z": 0.5818
+        },
+        "quaternion": {
+          "x": 0.3188,
+          "y": -0.4338,
+          "z": 0.6974,
+          "w": -0.4731
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandIndex4",
+      "parent": "mixamorigLeftHandIndex3",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.7749,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": -0.0008,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": -0.0004,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2517,
+          "y": 1.4907,
+          "z": 0.5567
+        },
+        "quaternion": {
+          "x": 0.3191,
+          "y": -0.4336,
+          "z": 0.6973,
+          "w": -0.4733
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandMiddle1",
+      "parent": "mixamorigLeftHand",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 9.5334,
+          "z": -0.0001
+        },
+        "rotationEuler": {
+          "x": 1.2781,
+          "y": 0.4148,
+          "z": 0.1804,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.5961,
+          "y": 0.112,
+          "z": 0.193,
+          "w": 0.7712
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.3132,
+          "y": 1.4868,
+          "z": 0.5761
+        },
+        "quaternion": {
+          "x": 0.766,
+          "y": -0.6006,
+          "z": -0.0362,
+          "w": 0.2264
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandMiddle2",
+      "parent": "mixamorigLeftHandMiddle1",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 3.7,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.5859,
+          "y": 0.1608,
+          "z": 0.1505,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.2928,
+          "y": 0.055,
+          "z": 0.0948,
+          "w": 0.9499
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2797,
+          "y": 1.4803,
+          "z": 0.5906
+        },
+        "quaternion": {
+          "x": 0.7389,
+          "y": -0.6413,
+          "z": 0.2051,
+          "w": 0.0272
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandMiddle3",
+      "parent": "mixamorigLeftHandMiddle2",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.95,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 1.5285,
+          "y": 0.4971,
+          "z": 0.1462,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.6819,
+          "y": 0.1281,
+          "z": 0.2208,
+          "w": 0.6854
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2514,
+          "y": 1.4751,
+          "z": 0.584
+        },
+        "quaternion": {
+          "x": 0.3571,
+          "y": -0.4594,
+          "z": 0.6786,
+          "w": -0.4483
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandMiddle4",
+      "parent": "mixamorigLeftHandMiddle3",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.9529,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": -0.002,
+          "z": 0.0001,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": -0.001,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2597,
+          "y": 1.4699,
+          "z": 0.5561
+        },
+        "quaternion": {
+          "x": 0.3578,
+          "y": -0.459,
+          "z": 0.6782,
+          "w": -0.4488
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandRing1",
+      "parent": "mixamorigLeftHand",
+      "local": {
+        "position": {
+          "x": 1.8651,
+          "y": 9.1045,
+          "z": 0.043
+        },
+        "rotationEuler": {
+          "x": 1.1052,
+          "y": 0.3522,
+          "z": 0.1904,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.5286,
+          "y": 0.0993,
+          "z": 0.1712,
+          "w": 0.8255
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.3168,
+          "y": 1.4699,
+          "z": 0.5678
+        },
+        "quaternion": {
+          "x": 0.7596,
+          "y": -0.5778,
+          "z": -0.1051,
+          "w": 0.2796
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandRing2",
+      "parent": "mixamorigLeftHandRing1",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 3.15,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.6998,
+          "y": 0.201,
+          "z": 0.1678,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.3478,
+          "y": 0.0653,
+          "z": 0.1126,
+          "w": 0.9285
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.291,
+          "y": 1.4644,
+          "z": 0.585
+        },
+        "quaternion": {
+          "x": 0.7443,
+          "y": -0.6403,
+          "z": 0.1845,
+          "w": 0.045
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandRing3",
+      "parent": "mixamorigLeftHandRing2",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.95,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 1.3249,
+          "y": 0.431,
+          "z": 0.1758,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.6133,
+          "y": 0.1152,
+          "z": 0.1986,
+          "w": 0.7557
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2624,
+          "y": 1.4592,
+          "z": 0.58
+        },
+        "quaternion": {
+          "x": 0.4417,
+          "y": -0.5134,
+          "z": 0.6268,
+          "w": -0.3853
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandRing4",
+      "parent": "mixamorigLeftHandRing3",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.6443,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0.001,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.0005,
+          "z": 0,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2632,
+          "y": 1.4546,
+          "z": 0.554
+        },
+        "quaternion": {
+          "x": 0.4414,
+          "y": -0.5136,
+          "z": 0.627,
+          "w": -0.385
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandPinky1",
+      "parent": "mixamorigLeftHand",
+      "local": {
+        "position": {
+          "x": 3.8063,
+          "y": 8.0778,
+          "z": 0.4868
+        },
+        "rotationEuler": {
+          "x": 0.9763,
+          "y": 0.304,
+          "z": 0.1943,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.4744,
+          "y": 0.0881,
+          "z": 0.1553,
+          "w": 0.862
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.3156,
+          "y": 1.4522,
+          "z": 0.5541
+        },
+        "quaternion": {
+          "x": 0.7494,
+          "y": -0.5587,
+          "z": -0.1565,
+          "w": 0.319
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandPinky2",
+      "parent": "mixamorigLeftHandPinky1",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 3.6,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 1.4051,
+          "y": 0.4538,
+          "z": 0.1688,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.6418,
+          "y": 0.118,
+          "z": 0.2076,
+          "w": 0.7287
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.289,
+          "y": 1.446,
+          "z": 0.5776
+        },
+        "quaternion": {
+          "x": 0.6534,
+          "y": -0.6255,
+          "z": 0.3992,
+          "w": -0.1501
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandPinky3",
+      "parent": "mixamorigLeftHandPinky2",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.1,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.6819,
+          "y": 0.1921,
+          "z": 0.166,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.3392,
+          "y": 0.0625,
+          "z": 0.1097,
+          "w": 0.9322
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2744,
+          "y": 1.4424,
+          "z": 0.563
+        },
+        "quaternion": {
+          "x": 0.4646,
+          "y": -0.5287,
+          "z": 0.6087,
+          "w": -0.3663
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftHandPinky4",
+      "parent": "mixamorigLeftHandPinky3",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 2.1255,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": -0.0016,
+          "z": -0.0006,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": -0.0008,
+          "z": -0.0003,
+          "w": 1
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.2734,
+          "y": 1.4387,
+          "z": 0.5421
+        },
+        "quaternion": {
+          "x": 0.4652,
+          "y": -0.5283,
+          "z": 0.6084,
+          "w": -0.3665
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightUpLeg",
+      "parent": "mixamorigHips",
+      "local": {
+        "position": {
+          "x": -8.2078,
+          "y": -6.7718,
+          "z": -1.5122
+        },
+        "rotationEuler": {
+          "x": -0.0207,
+          "y": 0,
+          "z": 3.1416,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.0104,
+          "z": 0.9999,
+          "w": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.0821,
+          "y": 0.9752,
+          "z": -0.0005
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.0039,
+          "z": 1,
+          "w": 0
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightLeg",
+      "parent": "mixamorigRightUpLeg",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 44.3715,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": -0.0762,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": -0.0381,
+          "y": 0,
+          "z": 0,
+          "w": 0.9993
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.0821,
+          "y": 0.5315,
+          "z": 0.003
+        },
+        "quaternion": {
+          "x": 0,
+          "y": -0.0342,
+          "z": 0.9994,
+          "w": 0
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightFoot",
+      "parent": "mixamorigRightLeg",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 44.5278,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.9554,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.4597,
+          "y": 0,
+          "z": 0,
+          "w": 0.8881
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.0821,
+          "y": 0.0873,
+          "z": -0.0274
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.4291,
+          "z": 0.9033,
+          "w": 0
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightToeBase",
+      "parent": "mixamorigRightFoot",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 13.8169,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.6837,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.3352,
+          "y": 0,
+          "z": 0,
+          "w": 0.9421
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.0821,
+          "y": 0,
+          "z": 0.0797
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.7071,
+          "z": 0.7071,
+          "w": 0
+        }
+      }
+    },
+    {
+      "name": "mixamorigRightToe_End",
+      "parent": "mixamorigRightToeBase",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 9.2781,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": 0.0232,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.0116,
+          "z": 0,
+          "w": 0.9999
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": -0.0821,
+          "y": 0,
+          "z": 0.1725
+        },
+        "quaternion": {
+          "x": -0.0082,
+          "y": 0.707,
+          "z": 0.7071,
+          "w": -0.0082
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftUpLeg",
+      "parent": "mixamorigHips",
+      "local": {
+        "position": {
+          "x": 8.2078,
+          "y": -6.7718,
+          "z": -1.5122
+        },
+        "rotationEuler": {
+          "x": -0.0207,
+          "y": 0,
+          "z": 3.1416,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.0104,
+          "z": 0.9999,
+          "w": 0
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.0821,
+          "y": 0.9752,
+          "z": -0.0005
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.0039,
+          "z": 1,
+          "w": 0
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftLeg",
+      "parent": "mixamorigLeftUpLeg",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 44.3714,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": -0.0762,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": -0.0381,
+          "y": 0,
+          "z": 0,
+          "w": 0.9993
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.0821,
+          "y": 0.5315,
+          "z": 0.003
+        },
+        "quaternion": {
+          "x": 0,
+          "y": -0.0342,
+          "z": 0.9994,
+          "w": 0
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftFoot",
+      "parent": "mixamorigLeftLeg",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 44.5279,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.9554,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.4597,
+          "y": 0,
+          "z": 0,
+          "w": 0.888
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.0821,
+          "y": 0.0873,
+          "z": -0.0274
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.4291,
+          "z": 0.9033,
+          "w": 0
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftToeBase",
+      "parent": "mixamorigLeftFoot",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 13.8169,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0.6837,
+          "y": 0,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0.3352,
+          "y": 0,
+          "z": 0,
+          "w": 0.9421
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.0821,
+          "y": 0,
+          "z": 0.0797
+        },
+        "quaternion": {
+          "x": 0,
+          "y": 0.7071,
+          "z": 0.7071,
+          "w": 0
+        }
+      }
+    },
+    {
+      "name": "mixamorigLeftToe_End",
+      "parent": "mixamorigLeftToeBase",
+      "local": {
+        "position": {
+          "x": 0,
+          "y": 9.2781,
+          "z": 0
+        },
+        "rotationEuler": {
+          "x": 0,
+          "y": -0.0237,
+          "z": 0,
+          "order": "XYZ"
+        },
+        "quaternion": {
+          "x": 0,
+          "y": -0.0119,
+          "z": 0,
+          "w": 0.9999
+        },
+        "scale": {
+          "x": 1,
+          "y": 1,
+          "z": 1
+        }
+      },
+      "world": {
+        "position": {
+          "x": 0.0821,
+          "y": 0,
+          "z": 0.1725
+        },
+        "quaternion": {
+          "x": 0.0084,
+          "y": 0.707,
+          "z": 0.7071,
+          "w": 0.0084
+        }
+      }
+    }
+  ]
+}

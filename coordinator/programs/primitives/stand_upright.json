@@ -1,0 +1,29 @@
+{
+  "id": "stand_upright",
+  "bodyType": "humanoid",
+  "tier": "primitive",
+  "description": "Maintain a balanced upright standing posture.",
+  "totalDurationMs": 1000,
+  "phases": [
+    {
+      "phaseIndex": 0,
+      "label": "stabilize",
+      "startMs": 0,
+      "endMs": 1000,
+      "jointTargets": {
+        "pelvis": { "x": 0, "y": 0, "z": 0 },
+        "spine": { "x": 0, "y": 0, "z": 0 },
+        "left_hip": { "x": 0, "y": 0, "z": 0 },
+        "right_hip": { "x": 0, "y": 0, "z": 0 }
+      },
+      "breakSignal": {
+        "condition": "com_stable",
+        "timeoutMs": 2000
+      }
+    }
+  ],
+  "learnedAtHeartbeat": null,
+  "learnedInSession": null,
+  "successCount": 0,
+  "attemptCount": 0
+}

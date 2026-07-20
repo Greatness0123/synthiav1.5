@@ -1,0 +1,1086 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>SYNTHIA — Biomechanical Locomotion Simulator</title>
+<style>
+  :root{
+    --bg:#0b0f16;
+    --panel:#101623ee;
+    --panel-border:#26324a;
+    --accent:#5b8cff;
+    --accent2:#38d9c9;
+    --text:#d7e3ff;
+    --text-dim:#8ea0c7;
+    --green:#3ddc84;
+    --yellow:#f5c04c;
+    --red:#ff5d6c;
+    --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:radial-gradient(ellipse at top, #131b2b 0%, #060911 70%);
+    color:var(--text); font-family:var(--font);
+    overflow:hidden;
+  }
+  #viewport{ position:fixed; inset:0; }
+  canvas{ display:block; }
+
+  /* ---------- Drop Zone ---------- */
+  #dropzone{
+    position:fixed; inset:0; z-index:500;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(6,9,17,0.86);
+    backdrop-filter: blur(6px);
+    transition:opacity .25s ease;
+  }
+  #dropzone.hidden{ opacity:0; pointer-events:none; }
+  .drop-card{
+    width:min(560px, 88vw);
+    border:2px dashed #3a4a6b;
+    border-radius:16px;
+    padding:40px 32px;
+    text-align:center;
+    background:linear-gradient(180deg, #131a2a, #0d1220);
+  }
+  .drop-card.dragover{ border-color:var(--accent); background:#151f36; }
+  .drop-card h1{ font-size:20px; margin:0 0 6px; letter-spacing:.02em; }
+  .drop-card p{ color:var(--text-dim); font-size:13px; line-height:1.5; margin:8px 0 20px; }
+  .drop-card input[type=file]{ display:none; }
+  .btn{
+    display:inline-block; cursor:pointer; user-select:none;
+    background:linear-gradient(180deg,#4d78ea,#3a5fd0);
+    color:white; border:none; border-radius:10px;
+    padding:11px 20px; font-size:13.5px; font-weight:600;
+    box-shadow:0 6px 18px rgba(70,100,220,.35);
+  }
+  .btn:hover{ filter:brightness(1.08); }
+  .btn.secondary{ background:#1c273e; box-shadow:none; border:1px solid #2c3a5a; }
+  .drop-hint{ margin-top:14px; font-size:11.5px; color:#5c6c90; }
+  .sample-row{ margin-top:14px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+
+  /* ---------- HUD / Top bar ---------- */
+  #topbar{
+    position:fixed; top:0; left:0; right:0; z-index:200;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 16px; pointer-events:none;
+  }
+  #brand{
+    pointer-events:auto;
+    font-size:13px; font-weight:700; letter-spacing:.08em;
+    color:var(--text); background:var(--panel);
+    border:1px solid var(--panel-border); border-radius:10px;
+    padding:8px 14px; backdrop-filter:blur(6px);
+  }
+  #brand span{ color:var(--accent2); }
+  #topbar .actions{ display:flex; gap:8px; pointer-events:auto; }
+  .icon-btn{
+    background:var(--panel); border:1px solid var(--panel-border);
+    color:var(--text); border-radius:10px; padding:8px 12px;
+    font-size:12px; cursor:pointer; backdrop-filter:blur(6px);
+  }
+  .icon-btn:hover{ border-color:var(--accent); color:#fff; }
+
+  /* ---------- Dashboard panels ---------- */
+  .panel{
+    position:fixed; z-index:150;
+    background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:14px; backdrop-filter:blur(8px);
+    box-shadow:0 12px 30px rgba(0,0,0,.45);
+    font-size:12.5px;
+    max-height:calc(100vh - 90px);
+    display:flex; flex-direction:column;
+    transition: box-shadow .15s;
+  }
+  .panel.dragging{
+    box-shadow:0 18px 40px rgba(0,0,0,.6);
+    cursor:grabbing;
+    z-index:160;
+  }
+  .panel.collapsed .panel-body{ display:none; }
+  .panel-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 12px; border-bottom:1px solid var(--panel-border);
+    cursor:grab; user-select:none;
+  }
+  .panel-head:active{ cursor:grabbing; }
+  .panel-head h2{ margin:0; font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--text-dim); }
+  .panel-head .chev{ color:var(--text-dim); font-size:11px; transition:transform .2s; }
+  .panel.collapsed .chev{ transform:rotate(-90deg); }
+  .panel-body{ padding:10px 12px 14px; overflow-y:auto; }
+  .panel-body::-webkit-scrollbar{ width:6px; }
+  .panel-body::-webkit-scrollbar-thumb{ background:#2a3550; border-radius:3px; }
+
+  #panel-telemetry{ top:60px; left:14px; width:260px; z-index:151; }
+  #panel-mass{ top:60px; right:14px; width:270px; z-index:152; }
+  #panel-locomotion{ bottom:14px; right:14px; width:290px; z-index:153; }
+
+  .stat-row{ display:flex; justify-content:space-between; padding:3px 0; color:var(--text-dim); }
+  .stat-row b{ color:var(--text); font-weight:600; }
+
+  .score-bar{ height:8px; border-radius:5px; background:#1c2438; overflow:hidden; margin-top:4px; }
+  .score-fill{ height:100%; border-radius:5px; transition:width .15s linear, background .2s; }
+
+  .bone-row{ margin-bottom:9px; padding-bottom:8px; border-bottom:1px solid #1c2438; }
+  .bone-row:last-child{ border-bottom:none; }
+  .bone-row-top{ display:flex; align-items:center; gap:6px; margin-bottom:3px; }
+  .dot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  .bone-name{ flex:1; font-size:11.5px; color:var(--text); }
+  .bone-badge{ font-size:9.5px; padding:1px 6px; border-radius:8px; }
+  .bone-badge.g{ background:rgba(61,220,132,.15); color:var(--green); }
+  .bone-badge.y{ background:rgba(245,192,76,.15); color:var(--yellow); }
+  .bone-badge.r{ background:rgba(255,93,108,.15); color:var(--red); }
+  .bone-meta{ font-size:10.5px; color:var(--text-dim); display:flex; justify-content:space-between; }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  .slider-row label{ display:flex; justify-content:space-between; font-size:11px; color:var(--text-dim); margin-bottom:2px; }
+  .slider-row{ margin-bottom:10px; }
+
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; padding:6px 0; }
+  .toggle-row span{ color:var(--text-dim); font-size:11.5px; }
+  .switch{ position:relative; width:38px; height:20px; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .slider-pill{
+    position:absolute; cursor:pointer; inset:0; background:#2a3550;
+    border-radius:20px; transition:.2s;
+  }
+  .slider-pill:before{
+    content:""; position:absolute; height:14px; width:14px; left:3px; bottom:3px;
+    background:white; border-radius:50%; transition:.2s;
+  }
+  .switch input:checked + .slider-pill{ background:var(--accent); }
+  .switch input:checked + .slider-pill:before{ transform:translateX(18px); }
+
+  .btn-row{ display:flex; gap:8px; margin-top:4px; flex-wrap:wrap; }
+  .btn-sm{
+    flex:1; min-width:80px; text-align:center;
+    background:#1c273e; border:1px solid #2c3a5a; color:var(--text);
+    border-radius:8px; padding:8px 6px; font-size:11.5px; cursor:pointer;
+  }
+  .btn-sm:hover{ border-color:var(--accent); }
+  .btn-sm.active{ background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn-sm.walk-on{ background:var(--green); border-color:var(--green); color:#052; }
+  .btn-sm.ragdoll-on{ background:var(--red); border-color:var(--red); color:#fff; }
+
+  #loading{
+    position:fixed; inset:0; z-index:600; display:none;
+    align-items:center; justify-content:center; flex-direction:column; gap:10px;
+    background:rgba(6,9,17,0.75); backdrop-filter:blur(4px);
+  }
+  #loading.show{ display:flex; }
+  .spinner{
+    width:34px; height:34px; border-radius:50%;
+    border:3px solid #253052; border-top-color:var(--accent);
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+  #loading span{ font-size:12px; color:var(--text-dim); }
+
+  #err-toast{
+    position:fixed; bottom:16px; left:50%; transform:translateX(-50%) translateY(140%);
+    background:#2a1418; border:1px solid #6b2530; color:#ffb3ba;
+    padding:10px 16px; border-radius:10px; font-size:12.5px; z-index:800;
+    transition:transform .25s ease; max-width:80vw;
+  }
+  #err-toast.show{ transform:translateX(-50%) translateY(0); }
+
+  @media (max-width: 860px){
+    .panel{ width:82vw !important; max-width:320px; }
+    #panel-telemetry{ top:60px; left:10px; }
+    #panel-mass{ top:60px; right:10px; }
+    #panel-locomotion{ bottom:14px; right:10px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="viewport"></div>
+
+<div id="topbar">
+  <div id="brand">SYNTHIA <span>// LOCOMOTION ENGINE</span></div>
+  <div class="actions">
+    <div class="icon-btn" id="btn-load-another">Load Model</div>
+  </div>
+</div>
+
+<!-- DROP ZONE -->
+<div id="dropzone">
+  <div class="drop-card" id="drop-card">
+    <h1>Load a Rigged Model</h1>
+    <p>Drag & drop a Mixamo, VRM, or standard GLTF/GLB skeleton here.<br/>
+    Bones are auto-mapped to biomechanical segments, given Rapier rigid bodies,
+    joint-limited, and driven by a procedural gait + balance controller.</p>
+    <label class="btn" for="file-input">Choose .glb / .gltf File</label>
+    <input type="file" id="file-input" accept=".glb,.gltf" />
+    <div class="drop-hint">No file leaves your browser — everything runs client-side.</div>
+  </div>
+</div>
+
+<div id="loading"><div class="spinner"></div><span id="loading-text">Processing skeleton…</span></div>
+<div id="err-toast"></div>
+
+<!-- PANEL 1: TELEMETRY -->
+<div class="panel" id="panel-telemetry">
+  <div class="panel-head" data-target="panel-telemetry">
+    <h2>Stability & Telemetry</h2><span class="chev">▾</span>
+  </div>
+  <div class="panel-body">
+    <div class="stat-row">Global Stability <b id="tel-score">—</b></div>
+    <div class="score-bar"><div class="score-fill" id="tel-score-bar" style="width:0%"></div></div>
+    <div class="stat-row">Bodies <b id="tel-bodies">0</b></div>
+    <div class="stat-row">Joints <b id="tel-joints">0</b></div>
+    <div class="stat-row">Motorized DOFs <b id="tel-motors">0</b></div>
+    <div class="stat-row">Distance Walked <b id="tel-distance">0.00 m</b></div>
+    <div class="stat-row">Torso Tilt <b id="tel-tilt">0.0°</b></div>
+    <div class="stat-row">Max Ang. Vel <b id="tel-maxang">0.0 rad/s</b></div>
+    <div id="tel-warning" class="stat-row" style="color:var(--red); display:none;">⚠ Instability detected</div>
+    <div style="margin-top:8px; border-top:1px solid #1c2438; padding-top:8px;" id="tel-bone-list"></div>
+  </div>
+</div>
+
+<!-- PANEL 2: MASS / INERTIA -->
+<div class="panel" id="panel-mass">
+  <div class="panel-head" data-target="panel-mass">
+    <h2>Mass & Inertia Tuning</h2><span class="chev">▾</span>
+  </div>
+  <div class="panel-body">
+    <div class="stat-row">Total Body Mass <b id="mass-total">70.0 kg</b></div>
+    <div id="mass-sliders" style="margin-top:8px;">
+      <div style="color:var(--text-dim); font-size:11.5px;">Load a model to tune segment mass.</div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL 3: LOCOMOTION / ENVIRONMENT -->
+<div class="panel" id="panel-locomotion">
+  <div class="panel-head" data-target="panel-locomotion">
+    <h2>Locomotion & Environment</h2><span class="chev">▾</span>
+  </div>
+  <div class="panel-body">
+    <div class="btn-row">
+      <div class="btn-sm" id="btn-walk">▶ Walk</div>
+      <div class="btn-sm" id="btn-reset-pose">Reset Pose</div>
+    </div>
+    <div class="btn-row" style="margin-top:4px;">
+      <div class="btn-sm" id="btn-ragdoll">Ragdoll: OFF</div>
+    </div>
+
+    <div class="slider-row" style="margin-top:12px;">
+      <label><span>Step Frequency</span><span id="lbl-freq">0.90 Hz</span></label>
+      <input type="range" id="sld-freq" min="0.2" max="2.2" step="0.01" value="0.9" />
+    </div>
+    <div class="slider-row">
+      <label><span>Stride Amplitude</span><span id="lbl-stride">0.55 rad</span></label>
+      <input type="range" id="sld-stride" min="0.1" max="1.1" step="0.01" value="0.55" />
+    </div>
+    <div class="slider-row">
+      <label><span>Balance Stiffness (Kp)</span><span id="lbl-kp">140</span></label>
+      <input type="range" id="sld-kp" min="20" max="400" step="1" value="140" />
+    </div>
+    <div class="slider-row">
+      <label><span>Balance Damping (Kd)</span><span id="lbl-kd">18</span></label>
+      <input type="range" id="sld-kd" min="1" max="60" step="1" value="18" />
+    </div>
+    <div class="slider-row">
+      <label><span>Ground Friction</span><span id="lbl-friction">0.80</span></label>
+      <input type="range" id="sld-friction" min="0.1" max="2.0" step="0.01" value="0.8" />
+    </div>
+    <div class="slider-row">
+      <label><span>Gravity (Y)</span><span id="lbl-gravity">-9.81</span></label>
+      <input type="range" id="sld-gravity" min="-20" max="-1" step="0.1" value="-9.81" />
+    </div>
+
+    <div class="toggle-row">
+      <span>Debug Wireframe / Colliders</span>
+      <label class="switch"><input type="checkbox" id="chk-wireframe" /><span class="slider-pill"></span></label>
+    </div>
+    <div class="toggle-row">
+      <span>Balance Controller</span>
+      <label class="switch"><input type="checkbox" id="chk-balance" checked /><span class="slider-pill"></span></label>
+    </div>
+  </div>
+</div>
+
+<!-- Import Map -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "@dimforge/rapier3d-compat": "https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.12.0/rapier.es.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import RAPIER from "@dimforge/rapier3d-compat";
+
+/* =====================================================================
+   SECTION 0 — SMALL DOM / UI HELPERS
+   ===================================================================== */
+const $ = (id) => document.getElementById(id);
+function showLoading(text){ $("loading-text").textContent = text || "Working…"; $("loading").classList.add("show"); }
+function hideLoading(){ $("loading").classList.remove("show"); }
+function toast(msg, ms=4200){
+  const el = $("err-toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>el.classList.remove("show"), ms);
+}
+
+// ---- Panel collapse toggle + drag-to-reposition ----
+const PANEL_DRAG_THRESHOLD = 4;
+let panelDragState = null;
+
+document.querySelectorAll(".panel-head").forEach(head => {
+  head.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    const panel = head.closest(".panel");
+    if (!panel) return;
+    panelDragState = {
+      panel,
+      startX: e.clientX,
+      startY: e.clientY,
+      startLeft: panel.offsetLeft,
+      startTop: panel.offsetTop,
+      dragged: false,
+      targetId: head.dataset.target,
+    };
+    e.preventDefault();
+  });
+});
+
+document.addEventListener("mousemove", (e) => {
+  if (!panelDragState) return;
+  const dx = e.clientX - panelDragState.startX;
+  const dy = e.clientY - panelDragState.startY;
+  if (!panelDragState.dragged && (Math.abs(dx) > PANEL_DRAG_THRESHOLD || Math.abs(dy) > PANEL_DRAG_THRESHOLD)) {
+    panelDragState.dragged = true;
+    panelDragState.panel.classList.add("dragging");
+  }
+  if (panelDragState.dragged) {
+    panelDragState.panel.style.left = (panelDragState.startLeft + dx) + "px";
+    panelDragState.panel.style.top = (panelDragState.startTop + dy) + "px";
+    panelDragState.panel.style.right = "";
+    panelDragState.panel.style.bottom = "";
+  }
+});
+
+document.addEventListener("mouseup", (e) => {
+  if (!panelDragState) return;
+  if (!panelDragState.dragged) {
+    // It was a click — toggle collapse
+    const target = document.getElementById(panelDragState.targetId);
+    if (target) target.classList.toggle("collapsed");
+  }
+  if (panelDragState.panel) {
+    panelDragState.panel.classList.remove("dragging");
+  }
+  panelDragState = null;
+});
+
+/* =====================================================================
+   SECTION 1 — BIOMECHANICAL BONE TAXONOMY
+   Standard segment mass percentages (70kg reference body, Winter/Dempster-
+   style anthropometric tables), matched dynamically against bone names.
+   ===================================================================== */
+const REFERENCE_TOTAL_MASS = 70; // kg
+
+// Ordered — first regex match wins. Applied to lower-cased bone name.
+const BONE_TAXONOMY = [
+  { key:"pelvis",   test:/hips?\b|pelvis/,                              massPct:15.0, color:0x3b82f6, radiusFrac:0.17, motorized:false, group:"trunk" },
+  { key:"spine",    test:/spine|abdomen|torso(?!.*upper)/,               massPct:0,    color:0x60a5fa, radiusFrac:0.15, motorized:false, group:"trunk" }, // % distributed below
+  { key:"chest",    test:/chest|thorax(?!.*(l_|r_|left|right))/,         massPct:0,    color:0x60a5fa, radiusFrac:0.16, motorized:false, group:"trunk" },
+  { key:"neck",     test:/neck/,                                        massPct:2.00, color:0xfbbf24, radiusFrac:0.09, motorized:false, group:"head" },
+  { key:"head",     test:/head/,                                        massPct:6.25, color:0xfbbf24, radiusFrac:0.14, motorized:false, group:"head" },
+  { key:"shoulder", test:/shoulder|clavicle/,                            massPct:0.60, color:0x93c5fd, radiusFrac:0.08, motorized:false, group:"arm" },
+  { key:"upperarm", test:/upper.?arm|arm(?!.*(fore|lower|up))/,          massPct:3.25, color:0x93c5fd, radiusFrac:0.09, motorized:false, group:"arm" },
+  { key:"forearm",  test:/fore.?arm|lower.?arm/,                         massPct:1.87, color:0x93c5fd, radiusFrac:0.075,motorized:false, group:"arm" },
+  { key:"hand",     test:/hand(?!.*(thumb|index|middle|ring|pinky))/,    massPct:0.65, color:0xbfdbfe, radiusFrac:0.07, motorized:false, group:"arm" },
+  { key:"thigh",    test:/up.?leg|thigh/,                                massPct:10.5, color:0x2563eb, radiusFrac:0.14, motorized:true,  group:"leg", axis:"hip" },
+  { key:"shank",    test:/(?<!up)leg(?!.*up)|shin|calf|lower.?leg|shank/,massPct:4.75, color:0x2563eb, radiusFrac:0.10, motorized:true,  group:"leg", axis:"knee" },
+  { key:"foot",     test:/foot|toe/,                                     massPct:1.43, color:0x1d4ed8, radiusFrac:0.09, motorized:true,  group:"leg", axis:"ankle" },
+];
+// Trunk (pelvis+spine+chest) totals 45%: pelvis fixed 15%, remaining 30% split across
+// however many spine/chest bones are actually found in the rig (renormalized later).
+const TRUNK_REMAINDER_PCT = 30.0;
+
+const EXCLUDE_RE = /twist|roll|ik|nub|end|eye|jaw|tongue|thumb|index|middle|ring|pinky|prop|weapon|breast|ponytail|hair/;
+
+function classifyBone(name){
+  const n = name.toLowerCase();
+  if (EXCLUDE_RE.test(n)) return null;
+  for (const cat of BONE_TAXONOMY){
+    if (cat.test.test(n)) return cat;
+  }
+  return null;
+}
+
+/* =====================================================================
+   SECTION 2 — THREE.JS SCENE
+   ===================================================================== */
+const viewportEl = $("viewport");
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0b0f16, 14, 60);
+
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth/window.innerHeight, 0.05, 250);
+camera.position.set(3.2, 2.4, 4.6);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+viewportEl.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.target.set(0, 1, 0);
+
+scene.add(new THREE.HemisphereLight(0x9bbcff, 0x0b0f16, 0.85));
+const sun = new THREE.DirectionalLight(0xffffff, 1.15);
+sun.position.set(6, 10, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -8; sun.shadow.camera.right = 8;
+sun.shadow.camera.top = 8; sun.shadow.camera.bottom = -8;
+scene.add(sun);
+
+const grid = new THREE.GridHelper(40, 40, 0x2a3550, 0x161d2e);
+scene.add(grid);
+
+const groundMat = new THREE.MeshStandardMaterial({ color:0x0e1420, roughness:0.95, metalness:0.05 });
+const groundMesh = new THREE.Mesh(new THREE.BoxGeometry(60, 1, 60), groundMat);
+groundMesh.position.y = -0.5;
+groundMesh.receiveShadow = true;
+scene.add(groundMesh);
+
+window.addEventListener("resize", ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* =====================================================================
+   SECTION 3 — RAPIER WORLD
+   ===================================================================== */
+await RAPIER.init();
+let GROUND_FRICTION = 0.8;
+let GRAVITY_Y = -9.81;
+const world = new RAPIER.World({ x:0, y:GRAVITY_Y, z:0 });
+
+let groundBody = world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -0.5, 0));
+let groundCollider = world.createCollider(
+  RAPIER.ColliderDesc.cuboid(30, 0.5, 30).setFriction(GROUND_FRICTION).setRestitution(0.0),
+  groundBody
+);
+
+const MAX_LINEAR_VELOCITY = 14.0;
+const MAX_ANGULAR_VELOCITY = 22.0;
+
+/* =====================================================================
+   SECTION 4 — RIG STATE (populated after a model loads)
+   ===================================================================== */
+let rig = null; // see buildRig()
+let wireframeOn = false;
+let balanceOn = true;
+let walking = false;
+let ragdollOn = false; // NEW: when true, motors are released (true ragdoll simulation)
+
+let gaitFreq = 0.9;      // Hz
+let strideAmp = 0.55;    // rad
+let balanceKp = 140;
+let balanceKd = 18;
+
+/* =====================================================================
+   SECTION 5 — MODEL LOADING (file input + drag & drop)
+   ===================================================================== */
+const loader = new GLTFLoader();
+
+function loadArrayBuffer(buf, name){
+  showLoading(`Parsing ${name}…`);
+  loader.parse(buf, "", (gltf)=>{
+    try{
+      onModelLoaded(gltf);
+      $("dropzone").classList.add("hidden");
+    }catch(err){
+      console.error(err);
+      toast("Failed to build physics rig: " + err.message);
+    }finally{
+      hideLoading();
+    }
+  }, (err)=>{
+    hideLoading();
+    console.error(err);
+    toast("Could not parse GLTF/GLB file. Ensure it's a valid rigged export.");
+  });
+}
+
+function handleFile(file){
+  if (!file) return;
+  const okExt = /\.(glb|gltf)$/i.test(file.name);
+  if (!okExt){ toast("Please provide a .glb or .gltf file."); return; }
+  const reader = new FileReader();
+  reader.onload = () => loadArrayBuffer(reader.result, file.name);
+  reader.onerror = () => toast("Could not read file from disk.");
+  reader.readAsArrayBuffer(file);
+}
+
+$("file-input").addEventListener("change", (e)=> handleFile(e.target.files[0]));
+$("btn-load-another").addEventListener("click", ()=> $("dropzone").classList.remove("hidden"));
+
+const dropCard = $("drop-card");
+["dragenter","dragover"].forEach(evt=>{
+  dropCard.addEventListener(evt, (e)=>{ e.preventDefault(); e.stopPropagation(); dropCard.classList.add("dragover"); });
+});
+["dragleave","drop"].forEach(evt=>{
+  dropCard.addEventListener(evt, (e)=>{ e.preventDefault(); e.stopPropagation(); dropCard.classList.remove("dragover"); });
+});
+dropCard.addEventListener("drop", (e)=>{
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  handleFile(file);
+});
+// Also allow dropping anywhere on the window before a model is loaded
+window.addEventListener("dragover", (e)=> e.preventDefault());
+window.addEventListener("drop", (e)=>{
+  if (!$("dropzone").classList.contains("hidden")) return;
+  e.preventDefault();
+});
+
+/* =====================================================================
+   SECTION 6 — RIG CONSTRUCTION + STAND UPRIGHT
+   ===================================================================== */
+
+function disposeRig(){
+  if (!rig) return;
+  for (const seg of rig.segments) {
+    try{ world.removeRigidBody(seg.body); }catch(e){}
+  }
+  scene.remove(rig.modelRoot);
+  rig = null;
+}
+
+function standUpright(){
+  if (!rig) return;
+  for (const seg of rig.segments){
+    // Reset to the exact initial transforms (standing pose)
+    seg.rb.setTranslation(seg.initialTranslation, true);
+    seg.rb.setRotation(seg.initialRotation, true);
+    seg.rb.setLinvel({x:0, y:0, z:0}, true);
+    seg.rb.setAngvel({x:0, y:0, z:0}, true);
+    // Reset motor targets to 0 (hold pose)
+    if (seg.joint && seg.motorAxis){
+      try{ seg.joint.configureMotorPosition(0, 900, 60); }catch(e){}
+    }
+  }
+  rig.gaitClock = 0;
+  walking = false;
+  $("btn-walk").textContent = "▶ Walk";
+  $("btn-walk").classList.remove("walk-on");
+}
+
+function onModelLoaded(gltf){
+  disposeRig();
+
+  const modelRoot = gltf.scene;
+  modelRoot.traverse(o=>{
+    if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; }
+  });
+  scene.add(modelRoot);
+  modelRoot.updateMatrixWorld(true);
+
+  // find the skinned mesh / skeleton
+  let skinned = null;
+  modelRoot.traverse(o=>{ if (o.isSkinnedMesh && !skinned) skinned = o; });
+  if (!skinned) throw new Error("No SkinnedMesh/skeleton found in this file.");
+
+  const bones = skinned.skeleton.bones;
+  if (!bones || !bones.length) throw new Error("Skeleton has no bones.");
+
+  // Normalize scale/height: fit model to ~1.75m tall standing on the ground.
+  const box = new THREE.Box3().setFromObject(skinned);
+  const height = Math.max(0.2, box.max.y - box.min.y);
+  const scale = 1.75 / height;
+  modelRoot.scale.setScalar(scale);
+  modelRoot.position.y -= box.min.y * scale;
+  modelRoot.updateMatrixWorld(true);
+
+  // classify bones, keep hierarchy order (parents before children)
+  const classified = []; // {bone, cat}
+  for (const b of bones){
+    const cat = classifyBone(b.name);
+    if (cat) classified.push({ bone:b, cat });
+  }
+  if (classified.length < 4) throw new Error("Could not confidently map enough bones. Rig may use non-standard naming.");
+
+  // depth-sort (root-first) so parent transforms are always resolved before children
+  function depthOf(bone){ let d=0, p=bone.parent; while(p){ d++; p=p.parent; } return d; }
+  classified.sort((a,b)=> depthOf(a.bone) - depthOf(b.bone));
+
+  const classifiedSet = new Set(classified.map(c=>c.bone));
+  function nearestClassifiedAncestor(bone){
+    let p = bone.parent;
+    while (p){ if (classifiedSet.has(p)) return p; p = p.parent; }
+    return null;
+  }
+  function nearestClassifiedDescendant(bone){
+    // BFS through children, stop branch once a classified bone is found
+    const queue = [...bone.children];
+    while (queue.length){
+      const c = queue.shift();
+      if (classifiedSet.has(c)) return c;
+      queue.push(...c.children);
+    }
+    return null;
+  }
+
+  // renormalize trunk percentages across however many spine/chest bones exist
+  const trunkExtra = classified.filter(c => c.cat.key==="spine" || c.cat.key==="chest");
+  const trunkEach = trunkExtra.length ? TRUNK_REMAINDER_PCT / trunkExtra.length : 0;
+
+  const worldPos = (b) => b.getWorldPosition(new THREE.Vector3());
+  const worldQuat = (b) => b.getWorldQuaternion(new THREE.Quaternion());
+
+  const segments = []; // physics segment records
+  const boneToSegment = new Map();
+
+  for (const { bone, cat } of classified){
+    const p0 = worldPos(bone);
+    const child = nearestClassifiedDescendant(bone);
+    let p1;
+    let isTerminal = false;
+    if (child){
+      p1 = worldPos(child);
+    } else {
+      // terminal segment (hand/foot/head) — extrude a short capsule along the
+      // direction from this bone's parent, or along local +Y as a fallback.
+      isTerminal = true;
+      const parentAnchor = nearestClassifiedAncestor(bone);
+      const dir = parentAnchor ? p0.clone().sub(worldPos(parentAnchor)).normalize() : new THREE.Vector3(0,-1,0);
+      if (dir.lengthSq() < 1e-6) dir.set(0,-1,0);
+      p1 = p0.clone().add(dir.multiplyScalar(0.14 * scale));
+    }
+
+    const segLen = Math.max(0.03, p0.distanceTo(p1));
+    const radius = Math.max(0.02, cat.radiusFrac * 0.5 * scale);
+    const halfHeight = Math.max(0.01, segLen/2 - radius*0.5);
+    const mid = p0.clone().add(p1).multiplyScalar(0.5);
+
+    // orientation: capsule's default long axis is +Y; rotate to align with p0->p1
+    const dirVec = p1.clone().sub(p0).normalize();
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), dirVec);
+
+    const massPct = cat.key==="spine"||cat.key==="chest" ? trunkEach : cat.massPct;
+    const massKg = Math.max(0.15, (massPct/100) * REFERENCE_TOTAL_MASS);
+    const volume = Math.PI*radius*radius*(2*halfHeight) + (4/3)*Math.PI*radius*radius*radius;
+    const density = massKg / Math.max(1e-6, volume);
+
+    const rbDesc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(mid.x, mid.y, mid.z)
+      .setRotation({ x:q.x, y:q.y, z:q.z, w:q.w })
+      .setLinearDamping(0.35)
+      .setAngularDamping(0.55)
+      .setCcdEnabled(true);
+    const rb = world.createRigidBody(rbDesc);
+
+    const colDesc = RAPIER.ColliderDesc.capsule(halfHeight, radius)
+      .setDensity(density)
+      .setFriction(cat.group==="leg" ? GROUND_FRICTION : 0.6)
+      .setRestitution(0.0);
+    const collider = world.createCollider(colDesc, rb);
+
+    const geo = new THREE.CapsuleGeometry(radius, halfHeight*2, 6, 12);
+    const mat = new THREE.MeshStandardMaterial({ color:cat.color, roughness:0.5, metalness:0.05, wireframe:wireframeOn, transparent:true, opacity:0.65 });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.visible = false; // hidden by default — only shown when wireframe debug is on
+    scene.add(mesh);
+
+    const seg = {
+      bone, cat, rb, collider, mesh, massKg, volume, radius, halfHeight,
+      segLen, isTerminal, joint:null, motorAxis:null,
+      // Store initial standing-pose transforms so we can reset later
+      initialTranslation: { x:mid.x, y:mid.y, z:mid.z },
+      initialRotation: { x:q.x, y:q.y, z:q.z, w:q.w },
+    };
+    segments.push(seg);
+    boneToSegment.set(bone, seg);
+  }
+
+  // Keep the original skinned mesh visible — physics capsules are debug-only.
+  skinned.visible = true;
+
+  // ---- JOINTS ----
+  let jointCount = 0, motorCount = 0;
+  const pelvisSeg = segments.find(s=>s.cat.key==="pelvis");
+
+  for (const seg of segments){
+    const parentBoneWithSeg = nearestClassifiedAncestor(seg.bone);
+    if (!parentBoneWithSeg) continue; // root (pelvis)
+    const parentSeg = boneToSegment.get(parentBoneWithSeg);
+    if (!parentSeg) continue;
+
+    // anchors in each body's local frame at the shared joint point (child's start = seg's p0)
+    const jointWorld = worldPos(seg.bone);
+    const anchorA = localAnchor(parentSeg.rb, jointWorld);
+    const anchorB = localAnchor(seg.rb, jointWorld);
+
+    const wantsMotor = seg.cat.motorized && (seg.cat.axis==="hip" || seg.cat.axis==="knee" || seg.cat.axis==="ankle");
+
+    if (wantsMotor){
+      const axis = { x:1, y:0, z:0 }; // sagittal-plane hinge (flex/extend)
+      const params = RAPIER.JointData.revolute(anchorA, anchorB, axis);
+      params.limitsEnabled = true;
+      if (seg.cat.axis==="hip")   params.limits = [-1.3, 1.3];
+      if (seg.cat.axis==="knee")  params.limits = [-2.35, 0.05];
+      if (seg.cat.axis==="ankle") params.limits = [-0.8, 0.8];
+      const joint = world.createImpulseJoint(params, parentSeg.rb, seg.rb, true);
+      try{ joint.configureMotorPosition(0.0, 900.0, 60.0); }catch(e){ /* API fallback below */ }
+      seg.joint = joint;
+      seg.motorAxis = seg.cat.axis;
+      motorCount++;
+    } else {
+      const params = RAPIER.JointData.spherical(anchorA, anchorB);
+      const joint = world.createImpulseJoint(params, parentSeg.rb, seg.rb, true);
+      seg.joint = joint;
+    }
+    jointCount++;
+  }
+
+  rig = {
+    modelRoot, skinned, segments, boneToSegment, pelvisSeg,
+    classifiedList: classified,
+    startX: pelvisSeg ? pelvisSeg.rb.translation().x : 0,
+    startZ: pelvisSeg ? pelvisSeg.rb.translation().z : 0,
+    jointCount, motorCount,
+    gaitClock: 0,
+  };
+
+  // Reset ragdoll state and stand upright on load
+  ragdollOn = false;
+  $("btn-ragdoll").textContent = "Ragdoll: OFF";
+  $("btn-ragdoll").classList.remove("ragdoll-on");
+  walking = false;
+  $("btn-walk").textContent = "▶ Walk";
+  $("btn-walk").classList.remove("walk-on");
+
+  $("tel-bodies").textContent = segments.length;
+  $("tel-joints").textContent = jointCount;
+  $("tel-motors").textContent = motorCount;
+
+  buildMassPanel();
+
+  // Stand the model upright immediately
+  standUpright();
+}
+
+function localAnchor(rb, worldPoint){
+  const t = rb.translation();
+  const r = rb.rotation();
+  const q = new THREE.Quaternion(r.x, r.y, r.z, r.w);
+  const invQ = q.clone().invert();
+  const local = new THREE.Vector3(worldPoint.x - t.x, worldPoint.y - t.y, worldPoint.z - t.z);
+  local.applyQuaternion(invQ);
+  return { x:local.x, y:local.y, z:local.z };
+}
+
+/* =====================================================================
+   SECTION 7 — MASS / INERTIA PANEL (dynamic sliders per segment)
+   ===================================================================== */
+function buildMassPanel(){
+  const holder = $("mass-sliders");
+  holder.innerHTML = "";
+  if (!rig) return;
+
+  let total = 0;
+  rig.segments.forEach(s => total += s.massKg);
+  $("mass-total").textContent = total.toFixed(1) + " kg";
+
+  rig.segments.forEach((seg, idx) => {
+    const row = document.createElement("div");
+    row.className = "slider-row";
+    const colorHex = "#" + seg.cat.color.toString(16).padStart(6,"0");
+    row.innerHTML = `
+      <label><span style="display:flex;align-items:center;gap:6px;">
+        <span style="width:8px;height:8px;border-radius:50%;background:${colorHex};display:inline-block;"></span>
+        ${seg.bone.name}</span><span id="mass-val-${idx}">${seg.massKg.toFixed(2)} kg</span></label>
+      <input type="range" min="0.1" max="15" step="0.05" value="${seg.massKg.toFixed(2)}" id="mass-sld-${idx}"/>
+    `;
+    holder.appendChild(row);
+    row.querySelector(`#mass-sld-${idx}`).addEventListener("input", (e)=>{
+      const newMass = parseFloat(e.target.value);
+      seg.massKg = newMass;
+      const newDensity = newMass / Math.max(1e-6, seg.volume);
+      seg.collider.setDensity(newDensity);
+      row.querySelector(`#mass-val-${idx}`).textContent = newMass.toFixed(2) + " kg";
+      let t = 0; rig.segments.forEach(s=>t+=s.massKg);
+      $("mass-total").textContent = t.toFixed(1) + " kg";
+    });
+  });
+}
+
+/* =====================================================================
+   SECTION 8 — GAIT CONTROLLER (procedural PD, sagittal-plane sinusoids)
+   ===================================================================== */
+function updateGait(dt){
+  if (!rig || !walking || ragdollOn) return;
+  rig.gaitClock += dt * gaitFreq * Math.PI * 2;
+  const phase = rig.gaitClock;
+
+  for (const seg of rig.segments){
+    if (!seg.joint || !seg.motorAxis) continue;
+    const isLeft = /l(eft)?[_\s]?/i.test(seg.bone.name) && !/right/i.test(seg.bone.name);
+    const sidePhase = isLeft ? phase : phase + Math.PI; // legs 180° out of phase
+
+    let target = 0;
+    if (seg.motorAxis === "hip"){
+      target = strideAmp * Math.sin(sidePhase);
+    } else if (seg.motorAxis === "knee"){
+      const swing = Math.max(0, Math.sin(sidePhase - Math.PI*0.15));
+      target = -strideAmp * 1.35 * swing * swing;
+    } else if (seg.motorAxis === "ankle"){
+      target = 0.25 * Math.sin(sidePhase + Math.PI*0.4);
+    }
+    try{ seg.joint.configureMotorPosition(target, 900.0, 60.0); }catch(e){ /* ignore if unsupported */ }
+  }
+}
+
+/* =====================================================================
+   SECTION 9 — UPRIGHT BALANCE CONTROLLER (torque-only, no position hacks)
+   ===================================================================== */
+const _up = new THREE.Vector3(0,1,0);
+function updateBalance(){
+  if (!rig || !balanceOn || ragdollOn || !rig.pelvisSeg) return;
+  const rb = rig.pelvisSeg.rb;
+  const r = rb.rotation();
+  const q = new THREE.Quaternion(r.x, r.y, r.z, r.w);
+  const bodyUp = _up.clone().applyQuaternion(q);
+  const errAxis = new THREE.Vector3().crossVectors(bodyUp, _up);
+  const errMag = bodyUp.angleTo(_up);
+  const ang = rb.angvel();
+  const torque = {
+    x: errAxis.x * balanceKp - ang.x * balanceKd,
+    y: -ang.y * (balanceKd*0.3),
+    z: errAxis.z * balanceKp - ang.z * balanceKd,
+  };
+  rb.applyTorqueImpulse({ x:torque.x*(1/60), y:torque.y*(1/60), z:torque.z*(1/60) }, true);
+  rig._lastTilt = errMag;
+}
+
+/* =====================================================================
+   SECTION 10 — BONE SYNC (physics world transform -> SkinnedMesh bones)
+   Bones are updated in root-first order so each child's parent.matrixWorld
+   is already current for that frame.
+   ===================================================================== */
+const _wp = new THREE.Vector3(), _wq = new THREE.Quaternion(), _sc = new THREE.Vector3(1,1,1);
+const _wm = new THREE.Matrix4(), _lm = new THREE.Matrix4(), _pInv = new THREE.Matrix4();
+
+function syncBonesFromPhysics(){
+  if (!rig) return;
+  for (const { bone } of rig.classifiedList){
+    const seg = rig.boneToSegment.get(bone);
+    if (!seg) continue;
+    const t = seg.rb.translation();
+    const r = seg.rb.rotation();
+    _wp.set(t.x, t.y, t.z);
+    _wq.set(r.x, r.y, r.z, r.w);
+    _wm.compose(_wp, _wq, _sc);
+
+    const parent = bone.parent;
+    parent.updateMatrixWorld();
+    _pInv.copy(parent.matrixWorld).invert();
+    _lm.multiplyMatrices(_pInv, _wm);
+    _lm.decompose(bone.position, bone.quaternion, bone.scale);
+    bone.scale.set(1,1,1);
+    bone.updateMatrix();
+    bone.matrixWorld.multiplyMatrices(parent.matrixWorld, bone.matrix);
+
+    // Capsule mesh follows the physics body — only visible in wireframe/debug mode
+    seg.mesh.position.copy(_wp);
+    seg.mesh.quaternion.copy(_wq);
+    seg.mesh.visible = wireframeOn;
+  }
+}
+
+/* =====================================================================
+   SECTION 11 — TELEMETRY PANEL
+   ===================================================================== */
+function updateTelemetry(){
+  if (!rig){ $("tel-bone-list").innerHTML=""; return; }
+
+  let maxAng = 0, maxLin = 0, unstableCount = 0, microCount = 0;
+  let rowsHtml = "";
+
+  for (const seg of rig.segments){
+    const lin = seg.rb.linvel();
+    const ang = seg.rb.angvel();
+    const linSpeed = Math.hypot(lin.x, lin.y, lin.z);
+    const angSpeed = Math.hypot(ang.x, ang.y, ang.z);
+    maxAng = Math.max(maxAng, angSpeed);
+    maxLin = Math.max(maxLin, linSpeed);
+
+    let cls = "g", label = "Stable";
+    if (angSpeed > 10 || linSpeed > 9){ cls="r"; label="Unstable"; unstableCount++; }
+    else if (angSpeed > 4 || linSpeed > 3.5){ cls="y"; label="Micro-osc"; microCount++; }
+
+    rowsHtml += `<div class="bone-row">
+      <div class="bone-row-top">
+        <span class="dot" style="background:#${seg.cat.color.toString(16).padStart(6,"0")}"></span>
+        <span class="bone-name">${seg.bone.name}</span>
+        <span class="bone-badge ${cls}">${label}</span>
+      </div>
+      <div class="bone-meta"><span>ω ${angSpeed.toFixed(2)} rad/s</span><span>v ${linSpeed.toFixed(2)} m/s</span></div>
+    </div>`;
+  }
+  $("tel-bone-list").innerHTML = rowsHtml;
+  $("tel-maxang").textContent = maxAng.toFixed(2) + " rad/s";
+
+  const stabilityScore = Math.max(0, 100 - unstableCount*22 - microCount*7);
+  $("tel-score").textContent = stabilityScore.toFixed(0) + " / 100";
+  const bar = $("tel-score-bar");
+  bar.style.width = stabilityScore + "%";
+  bar.style.background = stabilityScore>70 ? "var(--green)" : stabilityScore>40 ? "var(--yellow)" : "var(--red)";
+  $("tel-warning").style.display = unstableCount>0 ? "block" : "none";
+
+  if (rig.pelvisSeg){
+    const t = rig.pelvisSeg.rb.translation();
+    const dist = Math.hypot(t.x - rig.startX, t.z - rig.startZ);
+    $("tel-distance").textContent = dist.toFixed(2) + " m";
+  }
+  $("tel-tilt").textContent = ((rig._lastTilt||0) * 180/Math.PI).toFixed(1) + "°";
+}
+
+/* =====================================================================
+   SECTION 12 — DRAG-TO-POSE (grab any segment with the mouse)
+   On release, the dragged body is teleported back to its pre-drag state
+   to prevent constraint explosion.
+   ===================================================================== */
+const raycaster = new THREE.Raycaster();
+const mouseNDC = new THREE.Vector2();
+let dragging=false, draggedRb=null, dragJoint=null;
+let preDragTranslation=null, preDragRotation=null; // stored for safe release
+const dragHandle = world.createRigidBody(RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0,200,0));
+world.createCollider(RAPIER.ColliderDesc.ball(0.01).setSensor(true), dragHandle);
+const dragPlane = new THREE.Plane();
+const dragHit = new THREE.Vector3();
+
+function getMouse(e){
+  const r = renderer.domElement.getBoundingClientRect();
+  mouseNDC.x = ((e.clientX-r.left)/r.width)*2-1;
+  mouseNDC.y = -(((e.clientY-r.top)/r.height)*2-1);
+}
+function startDrag(e){
+  if (!rig) return;
+  getMouse(e);
+  raycaster.setFromCamera(mouseNDC, camera);
+  const meshes = rig.segments.map(s=>s.mesh);
+  const hits = raycaster.intersectObjects(meshes, false);
+  if (!hits.length) return;
+  const hit = hits[0];
+  const seg = rig.segments.find(s=>s.mesh===hit.object);
+  if (!seg) return;
+  controls.enabled = false;
+
+  // Store pre-drag transforms for safe release
+  const t = seg.rb.translation();
+  const r = seg.rb.rotation();
+  preDragTranslation = { x:t.x, y:t.y, z:t.z };
+  preDragRotation = { x:r.x, y:r.y, z:r.z, w:r.w };
+
+  dragPlane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()).negate(), hit.point);
+  dragHandle.setNextKinematicTranslation(hit.point);
+  const localA = { x:0,y:0,z:0 };
+  const localB = localAnchor(seg.rb, hit.point);
+  const params = RAPIER.JointData.spherical(localA, localB);
+  params.stiffness = 1.0; params.damping = 1.0;
+  dragJoint = world.createImpulseJoint(params, dragHandle, seg.rb, true);
+  seg.rb.wakeUp();
+  draggedRb = seg.rb;
+  dragging = true;
+}
+function moveDrag(e){
+  if (!dragging) return;
+  getMouse(e);
+  raycaster.setFromCamera(mouseNDC, camera);
+  if (raycaster.ray.intersectPlane(dragPlane, dragHit)){
+    dragHandle.setNextKinematicTranslation(dragHit);
+    draggedRb.wakeUp();
+  }
+}
+function endDrag(){
+  controls.enabled = true;
+  if (!dragging) return;
+  if (dragJoint){
+    world.removeImpulseJoint(dragJoint, true);
+    dragJoint = null;
+  }
+  // Teleport dragged body back to pre-drag state to prevent constraint explosion
+  if (draggedRb && preDragTranslation && preDragRotation){
+    draggedRb.setTranslation(preDragTranslation, true);
+    draggedRb.setRotation(preDragRotation, true);
+    draggedRb.setLinvel({x:0, y:0, z:0}, true);
+    draggedRb.setAngvel({x:0, y:0, z:0}, true);
+  }
+  draggedRb = null;
+  preDragTranslation = null;
+  preDragRotation = null;
+  dragging = false;
+}
+renderer.domElement.addEventListener("pointerdown",(e)=>{ if(e.button===0) startDrag(e); });
+window.addEventListener("pointermove", moveDrag);
+window.addEventListener("pointerup", endDrag);
+
+/* =====================================================================
+   SECTION 13 — UI WIRING (locomotion panel controls)
+   ===================================================================== */
+$("btn-walk").addEventListener("click", ()=>{
+  if (!rig) return;
+  // Cannot walk during ragdoll
+  if (ragdollOn){ toast("Disable Ragdoll first to walk."); return; }
+  walking = !walking;
+  const b = $("btn-walk");
+  b.textContent = walking ? "■ Stop" : "▶ Walk";
+  b.classList.toggle("walk-on", walking);
+});
+
+$("btn-reset-pose").addEventListener("click", ()=>{
+  if (!rig) return;
+  // Disable ragdoll and stand upright
+  ragdollOn = false;
+  $("btn-ragdoll").textContent = "Ragdoll: OFF";
+  $("btn-ragdoll").classList.remove("ragdoll-on");
+  standUpright();
+});
+
+$("btn-ragdoll").addEventListener("click", ()=>{
+  if (!rig) return;
+  ragdollOn = !ragdollOn;
+  const b = $("btn-ragdoll");
+
+  if (ragdollOn){
+    // Release all motors — true ragdoll mode
+    b.textContent = "Ragdoll: ON";
+    b.classList.add("ragdoll-on");
+    // Stop walking
+    walking = false;
+    $("btn-walk").textContent = "▶ Walk";
+    $("btn-walk").classList.remove("walk-on");
+    // Disable all motor stiffnesses
+    for (const seg of rig.segments){
+      if (seg.joint && seg.motorAxis){
+        try{ seg.joint.configureMotorPosition(0, 0, 0); }catch(e){}
+      }
+    }
+  } else {
+    // Re-engage motors, stand upright
+    b.textContent = "Ragdoll: OFF";
+    b.classList.remove("ragdoll-on");
+    standUpright();
+  }
+});
+

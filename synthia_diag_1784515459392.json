@@ -1,0 +1,723 @@
+{
+  "durationFrames": 183,
+  "durationMs": 31158.799999952316,
+  "bones": {
+    "mixamorigspine": {
+      "avgAngularSpeed": 4.947538943624273,
+      "maxAngularSpeed": 6.000000233869928,
+      "avgErrorAngleDeg": 12.332265976492467,
+      "maxErrorAngleDeg": 25.97933736027618,
+      "avgTorqueMag": 593.7046732349121,
+      "maxTorqueMag": 720.0000280643914,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 3.7442605834257168,
+      "verdict": "JITTER"
+    },
+    "mixamorigspine1": {
+      "avgAngularSpeed": 5.0416941897505705,
+      "maxAngularSpeed": 6.000000208186271,
+      "avgErrorAngleDeg": 15.449049759873967,
+      "maxErrorAngleDeg": 31.364321641679012,
+      "avgTorqueMag": 403.33553518004567,
+      "maxTorqueMag": 480.0000166549017,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 3.5944901600886876,
+      "verdict": "JITTER"
+    },
+    "mixamorigspine2": {
+      "avgAngularSpeed": 4.832545871419759,
+      "maxAngularSpeed": 6.000000210986142,
+      "avgErrorAngleDeg": 15.502185527239481,
+      "maxErrorAngleDeg": 31.54763393957369,
+      "avgTorqueMag": 386.60366971358076,
+      "maxTorqueMag": 480.0000168788914,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 3.701469033900851,
+      "verdict": "JITTER"
+    },
+    "mixamorigneck": {
+      "avgAngularSpeed": 5.575064786675306,
+      "maxAngularSpeed": 6.000000233038065,
+      "avgErrorAngleDeg": 15.462967430777011,
+      "maxErrorAngleDeg": 42.99147434232377,
+      "avgTorqueMag": 356.80414634721956,
+      "maxTorqueMag": 384.0000149144362,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 3.059595791027871,
+      "verdict": "JITTER"
+    },
+    "mixamorighead": {
+      "avgAngularSpeed": 4.818001507893585,
+      "maxAngularSpeed": 6.0000002353636335,
+      "avgErrorAngleDeg": 13.111617482628825,
+      "maxErrorAngleDeg": 28.600474528062506,
+      "avgTorqueMag": 231.26407237889205,
+      "maxTorqueMag": 288.0000112974544,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 2.3642331112488097,
+      "verdict": "JITTER"
+    },
+    "mixamorigrightshoulder": {
+      "avgAngularSpeed": 5.918993460112295,
+      "maxAngularSpeed": 6.00000024412868,
+      "avgErrorAngleDeg": 21.461107198920228,
+      "maxErrorAngleDeg": 50.728363302389376,
+      "avgTorqueMag": 236.7597384044918,
+      "maxTorqueMag": 240.00000976514718,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 3.3591366377019285,
+      "verdict": "JITTER"
+    },
+    "mixamorigrightarm": {
+      "avgAngularSpeed": 4.985473520211149,
+      "maxAngularSpeed": 6.000000250923573,
+      "avgErrorAngleDeg": 171.48441420926483,
+      "maxErrorAngleDeg": 179.91085179926634,
+      "avgTorqueMag": 398.83788161689205,
+      "maxTorqueMag": 480.0000200738858,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 3.3377408629394956,
+      "verdict": "JITTER"
+    },
+    "mixamorigrightforearm": {
+      "avgAngularSpeed": 5.034576078586853,
+      "maxAngularSpeed": 6.000000222099451,
+      "avgErrorAngleDeg": 166.9783074048593,
+      "maxErrorAngleDeg": 179.9926393422238,
+      "avgTorqueMag": 241.65965177216904,
+      "maxTorqueMag": 288.0000106607736,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 3.166574664840035,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthand": {
+      "avgAngularSpeed": 6.000000007267299,
+      "maxAngularSpeed": 6.000000235150139,
+      "avgErrorAngleDeg": 166.88371836430105,
+      "maxErrorAngleDeg": 179.8013829262604,
+      "avgTorqueMag": 192.00000023255356,
+      "maxTorqueMag": 192.00000752480446,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 2.8135443812598955,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandthumb1": {
+      "avgAngularSpeed": 5.999999998487921,
+      "maxAngularSpeed": 6.0000002513542885,
+      "avgErrorAngleDeg": 134.16506684854764,
+      "maxErrorAngleDeg": 178.5723433486301,
+      "avgTorqueMag": 5.999999998487921,
+      "maxTorqueMag": 6.0000002513542885,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.9526169172157077,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandthumb2": {
+      "avgAngularSpeed": 6.00000000294604,
+      "maxAngularSpeed": 6.00000021995074,
+      "avgErrorAngleDeg": 137.71631684250045,
+      "maxErrorAngleDeg": 178.9465764903964,
+      "avgTorqueMag": 6.00000000294604,
+      "maxTorqueMag": 6.00000021995074,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 3.0168042415030056,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandthumb3": {
+      "avgAngularSpeed": 6.000000005618166,
+      "maxAngularSpeed": 6.000000278325099,
+      "avgErrorAngleDeg": 130.111328414187,
+      "maxErrorAngleDeg": 179.87656963061445,
+      "avgTorqueMag": 6.000000005618166,
+      "maxTorqueMag": 6.000000278325099,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.9633148045969238,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandindex1": {
+      "avgAngularSpeed": 5.999999999048241,
+      "maxAngularSpeed": 6.000000245948077,
+      "avgErrorAngleDeg": 154.0437782974906,
+      "maxErrorAngleDeg": 179.91923225791743,
+      "avgTorqueMag": 5.999999999048241,
+      "maxTorqueMag": 6.000000245948077,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.856335930784761,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandindex2": {
+      "avgAngularSpeed": 5.999999999067855,
+      "maxAngularSpeed": 6.000000226253699,
+      "avgErrorAngleDeg": 142.9469903187393,
+      "maxErrorAngleDeg": 179.57231003732497,
+      "avgTorqueMag": 5.999999999067855,
+      "maxTorqueMag": 6.000000226253699,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.824242268641112,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandindex3": {
+      "avgAngularSpeed": 6.0000000002900755,
+      "maxAngularSpeed": 6.000000230901871,
+      "avgErrorAngleDeg": 134.6734995090359,
+      "maxErrorAngleDeg": 179.68602774865565,
+      "avgTorqueMag": 6.0000000002900755,
+      "maxTorqueMag": 6.000000230901871,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.7814507191162465,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandmiddle1": {
+      "avgAngularSpeed": 6.000000009679983,
+      "maxAngularSpeed": 6.000000236294867,
+      "avgErrorAngleDeg": 155.6115786677318,
+      "maxErrorAngleDeg": 179.94301067415648,
+      "avgTorqueMag": 6.000000009679983,
+      "maxTorqueMag": 6.000000236294867,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.9740126919781407,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandmiddle2": {
+      "avgAngularSpeed": 6.0000000170850045,
+      "maxAngularSpeed": 6.0000002348690025,
+      "avgErrorAngleDeg": 143.43782213357818,
+      "maxErrorAngleDeg": 179.9391859545395,
+      "avgTorqueMag": 6.0000000170850045,
+      "maxTorqueMag": 6.0000002348690025,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.856335930784761,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandmiddle3": {
+      "avgAngularSpeed": 6.000000015238992,
+      "maxAngularSpeed": 6.000000228917827,
+      "avgErrorAngleDeg": 140.26068570258087,
+      "maxErrorAngleDeg": 179.92700910034648,
+      "avgTorqueMag": 6.000000015238992,
+      "maxTorqueMag": 6.000000228917827,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.6851697326852997,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandring1": {
+      "avgAngularSpeed": 5.999999985921415,
+      "maxAngularSpeed": 6.0000002756347905,
+      "avgErrorAngleDeg": 151.09724290738163,
+      "maxErrorAngleDeg": 179.6625119142131,
+      "avgTorqueMag": 5.999999985921415,
+      "maxTorqueMag": 6.0000002756347905,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.9740126919781407,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandring2": {
+      "avgAngularSpeed": 5.999999985380685,
+      "maxAngularSpeed": 6.000000282244695,
+      "avgErrorAngleDeg": 139.14809540062882,
+      "maxErrorAngleDeg": 179.31787992082639,
+      "avgTorqueMag": 5.999999985380685,
+      "maxTorqueMag": 6.000000282244695,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.8135443812598955,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandring3": {
+      "avgAngularSpeed": 6.000000008418317,
+      "maxAngularSpeed": 6.000000230488185,
+      "avgErrorAngleDeg": 136.6817413871416,
+      "maxErrorAngleDeg": 179.64796079618438,
+      "avgTorqueMag": 6.000000008418317,
+      "maxTorqueMag": 6.000000230488185,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.899127480309626,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandpinky1": {
+      "avgAngularSpeed": 5.999999986963598,
+      "maxAngularSpeed": 6.000000251151653,
+      "avgErrorAngleDeg": 157.35085557496302,
+      "maxErrorAngleDeg": 179.9409757020648,
+      "avgTorqueMag": 5.999999986963598,
+      "maxTorqueMag": 6.000000251151653,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.77075283173503,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandpinky2": {
+      "avgAngularSpeed": 5.99999999363425,
+      "maxAngularSpeed": 6.000000250204105,
+      "avgErrorAngleDeg": 146.19122717820986,
+      "maxErrorAngleDeg": 179.2161304479751,
+      "avgTorqueMag": 5.99999999363425,
+      "maxTorqueMag": 6.000000250204105,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.7493570569725976,
+      "verdict": "JITTER"
+    },
+    "mixamorigrighthandpinky3": {
+      "avgAngularSpeed": 6.000000006581829,
+      "maxAngularSpeed": 6.000000245988701,
+      "avgErrorAngleDeg": 141.51856868490495,
+      "maxErrorAngleDeg": 179.63720039226422,
+      "avgTorqueMag": 6.000000006581829,
+      "maxTorqueMag": 6.000000245988701,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.7814507191162465,
+      "verdict": "JITTER"
+    },
+    "mixamorigleftshoulder": {
+      "avgAngularSpeed": 5.950436478005929,
+      "maxAngularSpeed": 6.000000238247367,
+      "avgErrorAngleDeg": 21.719649667283367,
+      "maxErrorAngleDeg": 50.73906670005267,
+      "avgTorqueMag": 238.0174591202372,
+      "maxTorqueMag": 240.00000952989467,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 3.5837922727074716,
+      "verdict": "JITTER"
+    },
+    "mixamorigleftarm": {
+      "avgAngularSpeed": 5.156899235217825,
+      "maxAngularSpeed": 6.00000022661659,
+      "avgErrorAngleDeg": 171.6980941251879,
+      "maxErrorAngleDeg": 179.8601189775299,
+      "avgTorqueMag": 412.5519388174261,
+      "maxTorqueMag": 480.00001812932726,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 3.401928187226794,
+      "verdict": "JITTER"
+    },
+    "mixamorigleftforearm": {
+      "avgAngularSpeed": 5.0984714488302245,
+      "maxAngularSpeed": 6.0000002288014604,
+      "avgErrorAngleDeg": 167.35822417135844,
+      "maxErrorAngleDeg": 179.587791363453,
+      "avgTorqueMag": 244.72662954385103,
+      "maxTorqueMag": 288.0000109824701,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 3.401928187226794,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthand": {
+      "avgAngularSpeed": 6.000000010941024,
+      "maxAngularSpeed": 6.000000256829938,
+      "avgErrorAngleDeg": 167.8167882906536,
+      "maxErrorAngleDeg": 179.84067333352706,
+      "avgTorqueMag": 192.00000035011277,
+      "maxTorqueMag": 192.000008218558,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 2.8135443812598955,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandthumb1": {
+      "avgAngularSpeed": 5.999999984803838,
+      "maxAngularSpeed": 6.0000002408140185,
+      "avgErrorAngleDeg": 134.1977404483986,
+      "maxErrorAngleDeg": 179.79843954192097,
+      "avgTorqueMag": 5.999999984803838,
+      "maxTorqueMag": 6.0000002408140185,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.738659169591381,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandthumb2": {
+      "avgAngularSpeed": 5.999999998464118,
+      "maxAngularSpeed": 6.0000002526804215,
+      "avgErrorAngleDeg": 136.7141592541717,
+      "maxErrorAngleDeg": 179.45358209550963,
+      "avgTorqueMag": 5.999999998464118,
+      "maxTorqueMag": 6.0000002526804215,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.792148606497463,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandthumb3": {
+      "avgAngularSpeed": 6.000000006128174,
+      "maxAngularSpeed": 6.000000329056728,
+      "avgErrorAngleDeg": 130.4244110283106,
+      "maxErrorAngleDeg": 179.42501286693638,
+      "avgTorqueMag": 6.000000006128174,
+      "maxTorqueMag": 6.000000329056728,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.77075283173503,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandindex1": {
+      "avgAngularSpeed": 6.000000005400397,
+      "maxAngularSpeed": 6.000000230455688,
+      "avgErrorAngleDeg": 153.0027453077144,
+      "maxErrorAngleDeg": 179.92693921962004,
+      "avgTorqueMag": 6.000000005400397,
+      "maxTorqueMag": 6.000000230455688,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.9419190298344917,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandindex2": {
+      "avgAngularSpeed": 6.000000006553195,
+      "maxAngularSpeed": 6.000000237036745,
+      "avgErrorAngleDeg": 142.52880750794392,
+      "maxErrorAngleDeg": 179.20781408898787,
+      "avgTorqueMag": 6.000000006553195,
+      "maxTorqueMag": 6.000000237036745,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.802846493878679,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandindex3": {
+      "avgAngularSpeed": 5.999999996341084,
+      "maxAngularSpeed": 6.000000264026955,
+      "avgErrorAngleDeg": 136.18120268685442,
+      "maxErrorAngleDeg": 179.86758102927988,
+      "avgTorqueMag": 5.999999996341084,
+      "maxTorqueMag": 6.000000264026955,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.802846493878679,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandmiddle1": {
+      "avgAngularSpeed": 5.999999987498254,
+      "maxAngularSpeed": 6.000000244873911,
+      "avgErrorAngleDeg": 154.4406284094789,
+      "maxErrorAngleDeg": 179.94970262831453,
+      "avgTorqueMag": 5.999999987498254,
+      "maxTorqueMag": 6.000000244873911,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 3.0168042415030056,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandmiddle2": {
+      "avgAngularSpeed": 6.000000001797056,
+      "maxAngularSpeed": 6.000000243254908,
+      "avgErrorAngleDeg": 140.2024400597463,
+      "maxErrorAngleDeg": 179.803055602722,
+      "avgTorqueMag": 6.000000001797056,
+      "maxTorqueMag": 6.000000243254908,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.802846493878679,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandmiddle3": {
+      "avgAngularSpeed": 6.0000000093380566,
+      "maxAngularSpeed": 6.000000233392882,
+      "avgErrorAngleDeg": 134.70473726913278,
+      "maxErrorAngleDeg": 179.85703952104282,
+      "avgTorqueMag": 6.0000000093380566,
+      "maxTorqueMag": 6.000000233392882,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.610284521016785,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandring1": {
+      "avgAngularSpeed": 6.0000000018761135,
+      "maxAngularSpeed": 6.000000248920836,
+      "avgErrorAngleDeg": 152.86931822150711,
+      "maxErrorAngleDeg": 179.90335036604935,
+      "avgTorqueMag": 6.0000000018761135,
+      "maxTorqueMag": 6.000000248920836,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.9526169172157077,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandring2": {
+      "avgAngularSpeed": 6.000000016466124,
+      "maxAngularSpeed": 6.000000259944769,
+      "avgErrorAngleDeg": 138.37004767741684,
+      "maxErrorAngleDeg": 179.86290153896314,
+      "avgTorqueMag": 6.000000016466124,
+      "maxTorqueMag": 6.000000259944769,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.8456380434035444,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandring3": {
+      "avgAngularSpeed": 5.999999991978919,
+      "maxAngularSpeed": 6.0000002639968235,
+      "avgErrorAngleDeg": 133.75104460835533,
+      "maxErrorAngleDeg": 179.83466105007585,
+      "avgTorqueMag": 5.999999991978919,
+      "maxTorqueMag": 6.0000002639968235,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.706565507447732,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandpinky1": {
+      "avgAngularSpeed": 6.000000002197807,
+      "maxAngularSpeed": 6.000000255700096,
+      "avgErrorAngleDeg": 154.2691838940674,
+      "maxErrorAngleDeg": 179.90825327461644,
+      "avgTorqueMag": 6.000000002197807,
+      "maxTorqueMag": 6.000000255700096,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.706565507447732,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandpinky2": {
+      "avgAngularSpeed": 5.99999998698076,
+      "maxAngularSpeed": 6.000000256053583,
+      "avgErrorAngleDeg": 144.95720312842184,
+      "maxErrorAngleDeg": 179.81770960585743,
+      "avgTorqueMag": 5.99999998698076,
+      "maxTorqueMag": 6.000000256053583,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 3.080991565790304,
+      "verdict": "JITTER"
+    },
+    "mixamoriglefthandpinky3": {
+      "avgAngularSpeed": 6.000000010705248,
+      "maxAngularSpeed": 6.000000237959497,
+      "avgErrorAngleDeg": 136.047566390149,
+      "maxErrorAngleDeg": 179.91067282535838,
+      "avgTorqueMag": 6.000000010705248,
+      "maxTorqueMag": 6.000000237959497,
+      "clampedFrames": 0,
+      "clampedPct": 0,
+      "oscillationsPerSec": 2.8456380434035444,
+      "verdict": "JITTER"
+    },
+    "mixamorigrightupleg": {
+      "avgAngularSpeed": 4.401377585702584,
+      "maxAngularSpeed": 6.000000224335731,
+      "avgErrorAngleDeg": 7.182505328621278,
+      "maxErrorAngleDeg": 19.23879465204839,
+      "avgTorqueMag": 704.2204137124135,
+      "maxTorqueMag": 960.000035893717,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 2.931221142453275,
+      "verdict": "JITTER"
+    },
+    "mixamorigrightleg": {
+      "avgAngularSpeed": 4.401767423348707,
+      "maxAngularSpeed": 6.000000202379784,
+      "avgErrorAngleDeg": 178.93823031572185,
+      "maxErrorAngleDeg": 179.9961627596127,
+      "avgTorqueMag": 704.2827877357928,
+      "maxTorqueMag": 960.0000323807654,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 2.856335930784761,
+      "verdict": "JITTER"
+    },
+    "mixamorigrightfoot": {
+      "avgAngularSpeed": 4.975318147096316,
+      "maxAngularSpeed": 6.000000228005488,
+      "avgErrorAngleDeg": 174.91681922006535,
+      "maxErrorAngleDeg": 179.99518617105352,
+      "avgTorqueMag": 477.6305421212465,
+      "maxTorqueMag": 576.0000218885268,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 2.7814507191162465,
+      "verdict": "JITTER"
+    },
+    "mixamorigleftupleg": {
+      "avgAngularSpeed": 4.406646933852698,
+      "maxAngularSpeed": 6.000000236152091,
+      "avgErrorAngleDeg": 6.907466970137633,
+      "maxErrorAngleDeg": 20.467381095254552,
+      "avgTorqueMag": 705.0635094164318,
+      "maxTorqueMag": 960.0000377843345,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 3.080991565790304,
+      "verdict": "JITTER"
+    },
+    "mixamorigleftleg": {
+      "avgAngularSpeed": 4.406981742136882,
+      "maxAngularSpeed": 6.00000023574383,
+      "avgErrorAngleDeg": 179.2071714047843,
+      "maxErrorAngleDeg": 179.9920752192983,
+      "avgTorqueMag": 705.1170787419009,
+      "maxTorqueMag": 960.0000377190128,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 2.995408466740573,
+      "verdict": "JITTER"
+    },
+    "mixamorigleftfoot": {
+      "avgAngularSpeed": 4.817497244881505,
+      "maxAngularSpeed": 6.000000242053223,
+      "avgErrorAngleDeg": 177.6308936185389,
+      "maxErrorAngleDeg": 179.99812280542298,
+      "avgTorqueMag": 462.4797355086243,
+      "maxTorqueMag": 576.0000232371094,
+      "clampedFrames": 183,
+      "clampedPct": 100,
+      "oscillationsPerSec": 2.7493570569725976,
+      "verdict": "JITTER"
+    }
+  },
+  "topJitterers": [
+    {
+      "bone": "mixamorigrighthandmiddle2",
+      "avgAngularSpeed": 6.0000000170850045,
+      "oscillationsPerSec": 2.856335930784761
+    },
+    {
+      "bone": "mixamoriglefthandring2",
+      "avgAngularSpeed": 6.000000016466124,
+      "oscillationsPerSec": 2.8456380434035444
+    },
+    {
+      "bone": "mixamorigrighthandmiddle3",
+      "avgAngularSpeed": 6.000000015238992,
+      "oscillationsPerSec": 2.6851697326852997
+    },
+    {
+      "bone": "mixamoriglefthand",
+      "avgAngularSpeed": 6.000000010941024,
+      "oscillationsPerSec": 2.8135443812598955
+    },
+    {
+      "bone": "mixamoriglefthandpinky3",
+      "avgAngularSpeed": 6.000000010705248,
+      "oscillationsPerSec": 2.8456380434035444
+    },
+    {
+      "bone": "mixamorigrighthandmiddle1",
+      "avgAngularSpeed": 6.000000009679983,
+      "oscillationsPerSec": 2.9740126919781407
+    },
+    {
+      "bone": "mixamoriglefthandmiddle3",
+      "avgAngularSpeed": 6.0000000093380566,
+      "oscillationsPerSec": 2.610284521016785
+    },
+    {
+      "bone": "mixamorigrighthandring3",
+      "avgAngularSpeed": 6.000000008418317,
+      "oscillationsPerSec": 2.899127480309626
+    },
+    {
+      "bone": "mixamorigrighthand",
+      "avgAngularSpeed": 6.000000007267299,
+      "oscillationsPerSec": 2.8135443812598955
+    },
+    {
+      "bone": "mixamorigrighthandpinky3",
+      "avgAngularSpeed": 6.000000006581829,
+      "oscillationsPerSec": 2.7814507191162465
+    },
+    {
+      "bone": "mixamoriglefthandindex2",
+      "avgAngularSpeed": 6.000000006553195,
+      "oscillationsPerSec": 2.802846493878679
+    },
+    {
+      "bone": "mixamoriglefthandthumb3",
+      "avgAngularSpeed": 6.000000006128174,
+      "oscillationsPerSec": 2.77075283173503
+    },
+    {
+      "bone": "mixamorigrighthandthumb3",
+      "avgAngularSpeed": 6.000000005618166,
+      "oscillationsPerSec": 2.9633148045969238
+    },
+    {
+      "bone": "mixamoriglefthandindex1",
+      "avgAngularSpeed": 6.000000005400397,
+      "oscillationsPerSec": 2.9419190298344917
+    },
+    {
+      "bone": "mixamorigrighthandthumb2",
+      "avgAngularSpeed": 6.00000000294604,
+      "oscillationsPerSec": 3.0168042415030056
+    }
+  ],
+  "worstTorqueClamp": [
+    {
+      "bone": "mixamorigspine",
+      "clampedFrames": 183,
+      "clampedPct": 100
+    },
+    {
+      "bone": "mixamorigspine1",
+      "clampedFrames": 183,
+      "clampedPct": 100
+    },
+    {
+      "bone": "mixamorigspine2",
+      "clampedFrames": 183,
+      "clampedPct": 100
+    },
+    {
+      "bone": "mixamorigneck",
+      "clampedFrames": 183,
+      "clampedPct": 100
+    },
+    {
+      "bone": "mixamorighead",
+      "clampedFrames": 183,
+      "clampedPct": 100
+    },
+    {
+      "bone": "mixamorigrightshoulder",
+      "clampedFrames": 183,
+      "clampedPct": 100
+    },
+    {
+      "bone": "mixamorigrightarm",
+      "clampedFrames": 183,
+      "clampedPct": 100
+    },
+    {
+      "bone": "mixamorigrightforearm",
+      "clampedFrames": 183,
+      "clampedPct": 100
+    },
+    {
+      "bone": "mixamorigrighthand",
+      "clampedFrames": 183,
+      "clampedPct": 100
+    },
+    {
+      "bone": "mixamorigleftshoulder",
+      "clampedFrames": 183,
+      "clampedPct": 100
+    }
+  ]
+}
