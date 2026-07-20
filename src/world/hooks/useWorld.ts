@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { WorldEngine } from "../engine/WorldEngine";
 import { PhysicsEngine } from "../engine/PhysicsEngine";
+import { MuJoCoPhysicsEngine } from "../engine/MuJoCoPhysicsEngine";
 import { AudioEngine } from "../engine/AudioEngine";
 import { ObjectManager } from "../engine/ObjectManager";
 import { RagdollBuilder } from "../engine/RagdollBuilder";
@@ -29,6 +30,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   const { sendMessage } = useCoordinator();
   const worldEngineRef = useRef<WorldEngine | null>(null);
   const physicsEngineRef = useRef<PhysicsEngine | null>(null);
+  const mujocoEngineRef = useRef<MuJoCoPhysicsEngine | null>(null);
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const objectManagerRef = useRef<ObjectManager | null>(null);
   const ragdollBuilderRef = useRef<RagdollBuilder | null>(null);
@@ -52,6 +54,26 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
     const init = async () => {
       try {
+        const useMuJoCo = useWorldStore.getState().useMuJoCo;
+
+        if (useMuJoCo) {
+          Logger.info("useWorld: Initializing MuJoCo physics...");
+          const mujocoEngine = new MuJoCoPhysicsEngine();
+          mujocoEngineRef.current = mujocoEngine;
+          await mujocoEngine.init();
+          if (cancelled) {
+            mujocoEngine.cleanup();
+            return;
+          }
+
+          Logger.info("MuJoCo mode: Phase 1 test scene only — humanoid, objects, and AI control not wired yet.");
+
+          setIsReady(true);
+          agentStore.setHasRehydrated(true);
+          Logger.info("useWorld: MuJoCo Initialization complete.");
+          return;
+        }
+
         Logger.info("useWorld: Initializing physics...");
         const physicsEngine = new PhysicsEngine();
         physicsEngineRef.current = physicsEngine;
@@ -315,16 +337,19 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
         );
       }
       physicsEngineRef.current?.cleanup();
+      mujocoEngineRef.current?.cleanup();
     };
   }, [containerRef]);
 
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     if (physicsEngineRef.current) {
       physicsEngineRef.current.setGravity(worldStore.gravity);
     }
   }, [worldStore.gravity]);
 
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     if (humanoidPhysicsBinderRef.current) {
       humanoidPhysicsBinderRef.current.friction = worldStore.globalFriction;
     }
@@ -335,18 +360,21 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [worldStore.globalFriction]);
 
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     if (humanoidPhysicsBinderRef.current) {
       humanoidPhysicsBinderRef.current.setLerpSpeed(worldStore.movementSmoothing);
     }
   }, [worldStore.movementSmoothing]);
 
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     if (humanoidPhysicsBinderRef.current) {
       humanoidPhysicsBinderRef.current.renderDebugSpheres(worldStore.showDebugJoints);
     }
   }, [worldStore.showDebugJoints]);
 
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     // When toggling to ragdoll, switch to procedural model so AI can control it.
     // When toggling to rigid, switch back to GLB model.
     if (worldStore.bodyType === 'humanoid') {
@@ -365,6 +393,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
   // Handle floor, grid, and sky state
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     if (worldEngineRef.current) {
       worldEngineRef.current.updateFloor(worldStore.showFloor, worldStore.floorColor);
       worldEngineRef.current.updateGrid(worldStore.showGrid);
@@ -374,6 +403,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
   // Handle object renaming, physics update, and deletion
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     const handleRename = (e: any) => {
       const { id, name } = e.detail;
       objectManagerRef.current?.renameObject(id, name);
@@ -407,6 +437,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
   // Bug 4 Fix: Subscribe to camera mode and relay to CameraManager
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     worldEngineRef.current?.getCameraManager().setMode(worldStore.cameraMode);
   }, [worldStore.cameraMode]);
 
@@ -460,6 +491,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
   // Bug 3 Fix: Listen for object spawn events dispatched by ObjectSpawner UI
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     const handleSpawnEvent = (e: Event) => {
       const { presetId } = (e as CustomEvent).detail;
       const objectManager = objectManagerRef.current;
@@ -482,6 +514,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [findSpawnPosition]);
 
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     const handleSpawnCustom = (e: Event) => {
       const { name, scene, isTerrain } = (e as CustomEvent).detail as {
         name: string;
@@ -511,6 +544,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [findSpawnPosition]);
 
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     const handlePush = (e: any) => {
       const { partName, impulse } = e.detail;
       if (worldStore.bodyType === 'humanoid' && humanoidPhysicsBinderRef.current) {
@@ -525,6 +559,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [worldStore.bodyType]);
 
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     const handleAction = (e: any) => {
       // Fix 5: Clear any pending timeline so the new action isn't overwritten
       // by stale interpolated values from the previous timeline.
@@ -612,6 +647,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   // ── Reset Pose Event Handler ─────────────────────────────────────────
   // Dispatched by BodyControls.tsx "RESET POSE" button and console scripts.
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     const handleResetPose = () => {
       const binder = humanoidPhysicsBinderRef.current;
       if (binder) {
@@ -628,6 +664,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   // Accepts { dx, dz } in meters and applies as capsule translation delta.
   // Used by console animation scripts to move the character forward.
   useEffect(() => {
+    if (useWorldStore.getState().useMuJoCo) return;
     const handleRootMotion = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
       const { dx = 0, dz = 0 } = detail;
@@ -643,6 +680,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
   useEffect(() => {
     if (!isReady) return;
+    if (useWorldStore.getState().useMuJoCo) return;
 
     const build = async () => {
       // Detach TransformControls before any cleanup to prevent

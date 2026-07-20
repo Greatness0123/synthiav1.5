@@ -30,6 +30,7 @@ interface WorldState {
   useMultiBodyPD: boolean;
   useProcedural: boolean;
   lastAIFrameForDisplay: string | null;
+  useMuJoCo: boolean;
 
   // Actions
   setUseMultiBodyPD: (enable: boolean) => void;
@@ -52,6 +53,7 @@ interface WorldState {
   setShowAIPiP: (show: boolean) => void;
   setMovementSmoothing: (speed: number) => void;
   setLastAIFrameForDisplay: (frame: string | null) => void;
+  setUseMuJoCo: (enable: boolean) => void;
   addObject: (obj: WorldObject) => void;
   removeObject: (id: string) => void;
   saveSession: () => void;
@@ -84,6 +86,7 @@ export const useWorldStore = create<WorldState>((set, get) => ({
   useMultiBodyPD: true,
   useProcedural: false,
   lastAIFrameForDisplay: null as string | null,
+  useMuJoCo: false,
 
   setUseMultiBodyPD: (useMultiBodyPD) => {
     set({ useMultiBodyPD });
@@ -151,6 +154,10 @@ export const useWorldStore = create<WorldState>((set, get) => ({
     get().saveSession();
   },
   setLastAIFrameForDisplay: (lastAIFrameForDisplay) => set({ lastAIFrameForDisplay }),
+  setUseMuJoCo: (useMuJoCo) => {
+    set({ useMuJoCo });
+    get().saveSession();
+  },
   addObject: (obj) => {
     set((state) => ({ objects: [...state.objects, obj] }));
     get().saveSession();
@@ -178,6 +185,7 @@ export const useWorldStore = create<WorldState>((set, get) => ({
       showAICameraHelper: state.showAICameraHelper,
       movementSmoothing: state.movementSmoothing,
       useProcedural: state.useProcedural,
+      useMuJoCo: state.useMuJoCo,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   },
