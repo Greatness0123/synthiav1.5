@@ -10,6 +10,7 @@ import { AudioEngine } from "../engine/AudioEngine";
 import { ObjectManager } from "../engine/ObjectManager";
 import { RagdollBuilder } from "../engine/RagdollBuilder";
 import { HumanoidPhysicsBinder } from "../engine/HumanoidPhysicsBinder";
+import { HumanoidPhysicsBinderMuJoCo } from "../engine/HumanoidPhysicsBinderMuJoCo";
 import { ProceduralHumanoidBuilder, ProceduralBuildResult } from "../engine/ProceduralHumanoidBuilder";
 import { ProceduralMotorController } from "../engine/ProceduralMotorController";
 import { ObservationBuilder } from "../engine/ObservationBuilder";
@@ -56,26 +57,15 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       try {
         const useMuJoCo = useWorldStore.getState().useMuJoCo;
 
+        let physicsEngine: any;
         if (useMuJoCo) {
           Logger.info("useWorld: Initializing MuJoCo physics...");
-          const mujocoEngine = new MuJoCoPhysicsEngine();
-          mujocoEngineRef.current = mujocoEngine;
-          await mujocoEngine.init();
-          if (cancelled) {
-            mujocoEngine.cleanup();
-            return;
-          }
-
-          Logger.info("MuJoCo mode: Phase 1 test scene only — humanoid, objects, and AI control not wired yet.");
-
-          setIsReady(true);
-          agentStore.setHasRehydrated(true);
-          Logger.info("useWorld: MuJoCo Initialization complete.");
-          return;
+          physicsEngine = new MuJoCoPhysicsEngine();
+          mujocoEngineRef.current = physicsEngine;
+        } else {
+          Logger.info("useWorld: Initializing Rapier physics...");
+          physicsEngine = new PhysicsEngine();
         }
-
-        Logger.info("useWorld: Initializing physics...");
-        const physicsEngine = new PhysicsEngine();
         physicsEngineRef.current = physicsEngine;
         await physicsEngine.init();
         if (cancelled) {
@@ -174,10 +164,18 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
         );
         ragdollBuilderRef.current = ragdollBuilder;
 
-        const humanoidPhysicsBinder = new HumanoidPhysicsBinder(
-          physicsEngine,
-          worldEngine.getScene()
-        );
+        let humanoidPhysicsBinder: any;
+        if (useMuJoCo) {
+          humanoidPhysicsBinder = new HumanoidPhysicsBinderMuJoCo(
+            physicsEngine,
+            worldEngine.getScene()
+          );
+        } else {
+          humanoidPhysicsBinder = new HumanoidPhysicsBinder(
+            physicsEngine,
+            worldEngine.getScene()
+          );
+        }
         humanoidPhysicsBinderRef.current = humanoidPhysicsBinder;
 
         // Expose humanoid binder to window for step-by-step testing
@@ -342,14 +340,12 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [containerRef]);
 
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     if (physicsEngineRef.current) {
       physicsEngineRef.current.setGravity(worldStore.gravity);
     }
   }, [worldStore.gravity]);
 
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     if (humanoidPhysicsBinderRef.current) {
       humanoidPhysicsBinderRef.current.friction = worldStore.globalFriction;
     }
@@ -360,21 +356,18 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [worldStore.globalFriction]);
 
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     if (humanoidPhysicsBinderRef.current) {
       humanoidPhysicsBinderRef.current.setLerpSpeed(worldStore.movementSmoothing);
     }
   }, [worldStore.movementSmoothing]);
 
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     if (humanoidPhysicsBinderRef.current) {
       humanoidPhysicsBinderRef.current.renderDebugSpheres(worldStore.showDebugJoints);
     }
   }, [worldStore.showDebugJoints]);
 
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     // When toggling to ragdoll, switch to procedural model so AI can control it.
     // When toggling to rigid, switch back to GLB model.
     if (worldStore.bodyType === 'humanoid') {
@@ -393,7 +386,6 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
   // Handle floor, grid, and sky state
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     if (worldEngineRef.current) {
       worldEngineRef.current.updateFloor(worldStore.showFloor, worldStore.floorColor);
       worldEngineRef.current.updateGrid(worldStore.showGrid);

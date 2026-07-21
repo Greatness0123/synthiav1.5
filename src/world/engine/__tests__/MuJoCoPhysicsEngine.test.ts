@@ -131,4 +131,50 @@ describe('MuJoCoPhysicsEngine', () => {
       expect(clampedQVel[3]).toBeLessThanOrEqual(10.1);
     }
   });
+
+  test('mj_ray function call probe', async () => {
+    await engine.init();
+    const module = (MuJoCoPhysicsEngine as any).mujocoModule;
+    if (module) {
+      const testMJCF = `
+<mujoco model="synthia_phase1_ray_test">
+  <compiler angle="radian"/>
+  <worldbody>
+    <geom name="test_box" type="box" size="1 1 1" pos="0 0 1" contype="1" conaffinity="1"/>
+  </worldbody>
+</mujoco>
+      `.trim();
+      module.FS.writeFile('/test_ray_model.xml', testMJCF);
+      const model = module.MjModel.mj_loadXML('/test_ray_model.xml');
+      const data = new module.MjData(model);
+
+      // Update global positions first!
+      module.mj_forward(model, data);
+
+      console.log('Model ngeom:', model.ngeom);
+      for (let i = 0; i < model.ngeom; i++) {
+        console.log(`Geom ${i} name:`, module.mj_id2name(model, module.mjtObj.mjOBJ_GEOM.value, i), 'pos:', data.geom_xpos[i * 3], data.geom_xpos[i * 3 + 1], data.geom_xpos[i * 3 + 2]);
+      }
+
+      const pnt = [0, 0, 5];
+      const dir = [0, 0, -1];
+      const geomgroup = [1, 1, 1, 1, 1, 1];
+
+      const geomIdBuffer = new module.IntBuffer(1);
+      geomIdBuffer.GetView()[0] = -1;
+      const distBuffer = new module.DoubleBuffer(1);
+      distBuffer.GetView()[0] = -1;
+
+      // Call mj_ray with standard JS arrays for input, but WASM buffers for output pointers!
+      const dist = module.mj_ray(model, data, pnt, dir, geomgroup, true, -1, geomIdBuffer, null);
+
+      console.log('mj_ray probe results: dist =', dist, 'geomIdBuffer =', geomIdBuffer.GetView()[0]);
+      expect(dist).toBeGreaterThanOrEqual(0);
+      expect(geomIdBuffer.GetView()[0]).toBe(0); // hits test_box (id 0)
+
+      geomIdBuffer.delete();
+      model.delete();
+      data.delete();
+    }
+  });
 });
