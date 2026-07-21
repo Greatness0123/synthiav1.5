@@ -7,10 +7,11 @@ export class MuJoCoBodyManager {
   private physicsEngine: MuJoCoPhysicsEngine;
   private modelRoot: THREE.Group | null = null;
   private capsuleCenterY: number = 0;
-  private boneInfoMap: Map<string, { bone: THREE.Bone; worldPosition: THREE.Vector3 }> | null = null;
+  private _boneInfoMap: Map<string, { bone: THREE.Bone; worldPosition: THREE.Vector3 }> | null = null;
 
   private bodyMap: Map<string, number> = new Map(); // boneName -> bodyId
   private geomMap: Map<string, number> = new Map(); // boneName -> geomId
+  private actuatorMap: Map<string, number[]> = new Map(); // boneName -> actuatorIds
   private capsuleBodyId: number | null = null;
 
   public isActive: boolean = false;
@@ -33,7 +34,7 @@ export class MuJoCoBodyManager {
     try {
       this.modelRoot = modelRoot;
       this.capsuleCenterY = capsuleCenterY;
-      this.boneInfoMap = boneInfoMap;
+      this._boneInfoMap = boneInfoMap;
 
       this.deactivate();
 
@@ -82,8 +83,25 @@ export class MuJoCoBodyManager {
         }
       }
 
+      // Build actuator ID map
+      this.actuatorMap.clear();
+      for (const boneName of boneInfoMap.keys()) {
+        const ids: number[] = [];
+        const suffixes = ['_yaw', '_pitch', '_roll'];
+        for (const suffix of suffixes) {
+          const actName = `act_${boneName}${suffix}`;
+          const actId = module.mj_name2id(model, module.mjtObj.mjOBJ_ACTUATOR.value, actName);
+          if (actId >= 0) {
+            ids.push(actId);
+          }
+        }
+        if (ids.length > 0) {
+          this.actuatorMap.set(boneName, ids);
+        }
+      }
+
       this.isActive = true;
-      Logger.info(`MuJoCoBodyManager: Activated. Tracked ${this.bodyMap.size} body IDs and ${this.geomMap.size} geom IDs.`);
+      Logger.info(`MuJoCoBodyManager: Activated. Tracked ${this.bodyMap.size} body IDs, ${this.geomMap.size} geom IDs, and ${this.actuatorMap.size} actuator bones.`);
       return true;
     } catch (error) {
       Logger.error('MuJoCoBodyManager: Activation failed', error);
@@ -94,15 +112,21 @@ export class MuJoCoBodyManager {
     }
   }
 
+  public getActuatorMap(): Map<string, number[]> {
+    return this.actuatorMap;
+  }
+
   public deactivate(): void {
     if (!this.isActive) return;
     this.physicsEngine.setMutating(true);
     try {
       this.bodyMap.clear();
       this.geomMap.clear();
+      this.actuatorMap.clear();
       this.capsuleBodyId = null;
       this.modelRoot = null;
-      this.boneInfoMap = null;
+      this._boneInfoMap = null;
+      void this._boneInfoMap; // Silence tsc -b strict mode unused field warning
       this.isActive = false;
       Logger.info('MuJoCoBodyManager: Deactivated');
     } finally {

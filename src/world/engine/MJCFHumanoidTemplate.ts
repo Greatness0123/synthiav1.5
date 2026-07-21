@@ -62,6 +62,27 @@ function getPhysicsParentName(bone: THREE.Bone, trackedBones: Set<string>): stri
   return null;
 }
 
+function getMuJoCoBoneGains(boneName: string): { kp: number; kv: number } {
+  const name = boneName.toLowerCase();
+
+  if (name.includes('hand') && (name.includes('index') || name.includes('middle') || name.includes('ring') || name.includes('pinky') || name.includes('thumb'))) {
+    return { kp: 5, kv: 1 };
+  }
+  if (name.includes('upleg') || name.includes('leg')) {
+    return { kp: 400, kv: 80 };
+  }
+  if (name.includes('arm') || name.includes('forearm')) {
+    return { kp: 200, kv: 40 };
+  }
+  if (name.includes('spine')) {
+    return { kp: 300, kv: 60 };
+  }
+  if (name.includes('neck') || name.includes('head')) {
+    return { kp: 150, kv: 30 };
+  }
+  return { kp: 150, kv: 30 };
+}
+
 function estimateBoneLength(
   boneName: string,
   boneInfo: { bone: THREE.Bone; worldPosition: THREE.Vector3 },
@@ -94,7 +115,7 @@ function estimateBoneLength(
 
 export function generateHumanoidMJCF(
   boneInfoMap: Map<string, { bone: THREE.Bone; worldPosition: THREE.Vector3 }>,
-  skeletonOrBones: any,
+  _skeletonOrBones: any,
   capsuleCenterYOrPhysicsMatrix?: any,
   modelRootOrRigConstraints?: any,
   physicsMatrix?: any,
@@ -120,6 +141,8 @@ export function generateHumanoidMJCF(
       trackedBones.add(canonical);
     }
   }
+
+  const actuators: string[] = [];
 
   // Model root and Capsule properties
   // Find model root position
@@ -215,11 +238,16 @@ export function generateHumanoidMJCF(
       return `${sMin} ${sMax}`;
     };
 
+    const gains = getMuJoCoBoneGains(boneName);
+    const kp = gains.kp;
+    const kv = gains.kv;
+
     if (jointType === 'revolute' || (constraint && constraint.dof === 1)) {
       // Single Hinge Joint (Pitch: axis 1 0 0)
       const min = constraint?.x?.[0] ?? limits?.min ?? -2.618;
       const max = constraint?.x?.[1] ?? limits?.max ?? 0;
       jointsXML = `<joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(min, max)}" limited="true"/>`;
+      actuators.push(`<position name="act_${boneName}_pitch" joint="${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(min, max)}"/>`);
     } else if (constraint && constraint.dof === 2) {
       // 2-DOF Joint Decomposed into Pitch (1 0 0) and Roll (0 1 0)
       const minX = constraint.x[0], maxX = constraint.x[1];
@@ -228,6 +256,8 @@ export function generateHumanoidMJCF(
         <joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(minX, maxX)}" limited="true"/>
         <joint name="${boneName}_roll" type="hinge" axis="0 1 0" range="${getSafeRangeStr(minZ, maxZ)}" limited="true"/>
       `;
+      actuators.push(`<position name="act_${boneName}_pitch" joint="${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minX, maxX)}"/>`);
+      actuators.push(`<position name="act_${boneName}_roll" joint="${boneName}_roll" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minZ, maxZ)}"/>`);
     } else {
       // 3-DOF Joint Decomposed into Yaw (0 0 1) -> Pitch (1 0 0) -> Roll (0 1 0)
       const minX = constraint?.x?.[0] ?? limits?.min ?? -0.785;
@@ -241,11 +271,14 @@ export function generateHumanoidMJCF(
         <joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(minX, maxX)}" limited="true"/>
         <joint name="${boneName}_roll" type="hinge" axis="0 1 0" range="${getSafeRangeStr(minZ, maxZ)}" limited="true"/>
       `;
+      actuators.push(`<position name="act_${boneName}_yaw" joint="${boneName}_yaw" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minY, maxY)}"/>`);
+      actuators.push(`<position name="act_${boneName}_pitch" joint="${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minX, maxX)}"/>`);
+      actuators.push(`<position name="act_${boneName}_roll" joint="${boneName}_roll" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minZ, maxZ)}"/>`);
     }
 
     // Recursively build children
     const childBones = Array.from(trackedBones).filter(b => getPhysicsParentName(boneInfoMap.get(b)!.bone, trackedBones) === boneName);
-    const childrenXML = childBones.map(cb => buildBodyTreeXML(cb, childPosMj, childQuatMj)).join('\n');
+    const childrenXML = childBones.map(cb => buildBodyTreeXML(cb, childPosMj as [number, number, number], childQuatMj as [number, number, number, number])).join('\n');
 
     return `
       <body name="${boneName}" pos="${posStr}" quat="${quatStr}">
@@ -258,9 +291,9 @@ export function generateHumanoidMJCF(
   };
 
   // Build the spine, left leg, and right leg branches under the root capsule
-  const spineBranch = buildBodyTreeXML('mixamorigspine', capsulePosMj, capsuleQuatMj);
-  const leftLegBranch = buildBodyTreeXML('mixamorigleftupleg', capsulePosMj, capsuleQuatMj);
-  const rightLegBranch = buildBodyTreeXML('mixamorigrightupleg', capsulePosMj, capsuleQuatMj);
+  const spineBranch = buildBodyTreeXML('mixamorigspine', capsulePosMj as [number, number, number], capsuleQuatMj as [number, number, number, number]);
+  const leftLegBranch = buildBodyTreeXML('mixamorigleftupleg', capsulePosMj as [number, number, number], capsuleQuatMj as [number, number, number, number]);
+  const rightLegBranch = buildBodyTreeXML('mixamorigrightupleg', capsulePosMj as [number, number, number], capsuleQuatMj as [number, number, number, number]);
 
   // Return the complete MJCF XML
   const xml = `
@@ -281,6 +314,10 @@ export function generateHumanoidMJCF(
       ${rightLegBranch}
     </body>
   </worldbody>
+
+  <actuator>
+    ${actuators.join('\n    ')}
+  </actuator>
 </mujoco>
   `.trim();
 
