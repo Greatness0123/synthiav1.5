@@ -52,6 +52,33 @@ describe('MuJoCoPhysicsEngine', () => {
     expect(gravityZ).toBe(-5.0);
   });
 
+  test('quaternion conversion helpers work correctly', () => {
+    // 1. Identity quaternion
+    const identityThree = { x: 0, y: 0, z: 0, w: 1 };
+    const convertedIdentity = MuJoCoPhysicsEngine.threeQuatToMuJoCo(identityThree);
+    // Should be transformed via Q_align conjugation
+    // Q_align = (-90 deg about X) = [w: 0.7071, x: -0.7071, y: 0, z: 0]
+    // Under identity, converted should be [0.7071, -0.7071, 0, 0] (or similar normalized, depending on direction)
+    const backToThreeIdentity = MuJoCoPhysicsEngine.mujocoQuatToThree(convertedIdentity);
+
+    // Check back conversion gives back identity
+    expect(Math.abs(backToThreeIdentity.x)).toBeLessThanOrEqual(1e-5);
+    expect(Math.abs(backToThreeIdentity.y)).toBeLessThanOrEqual(1e-5);
+    expect(Math.abs(backToThreeIdentity.z)).toBeLessThanOrEqual(1e-5);
+    expect(Math.abs(backToThreeIdentity.w - 1)).toBeLessThanOrEqual(1e-5);
+
+    // 2. Clean 90 deg rotation about X
+    // (x: sin(45) = 0.7071, y: 0, z: 0, w: cos(45) = 0.7071)
+    const rotXThree = { x: 0.70710678, y: 0, z: 0, w: 0.70710678 };
+    const convertedRotX = MuJoCoPhysicsEngine.threeQuatToMuJoCo(rotXThree);
+    const backToThreeRotX = MuJoCoPhysicsEngine.mujocoQuatToThree(convertedRotX);
+
+    expect(Math.abs(backToThreeRotX.x - 0.70710678)).toBeLessThanOrEqual(1e-5);
+    expect(Math.abs(backToThreeRotX.y)).toBeLessThanOrEqual(1e-5);
+    expect(Math.abs(backToThreeRotX.z)).toBeLessThanOrEqual(1e-5);
+    expect(Math.abs(backToThreeRotX.w - 0.70710678)).toBeLessThanOrEqual(1e-5);
+  });
+
   test('velocity clamping works correctly on registered bodies', async () => {
     // Add a free body to the scene to test velocity clamping
     const testMJCF = `

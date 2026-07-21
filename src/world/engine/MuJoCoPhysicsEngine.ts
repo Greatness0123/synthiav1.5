@@ -1,4 +1,5 @@
 import mujoco, { MainModule, MjModel, MjData, MjContact } from '@mujoco/mujoco';
+import * as THREE from 'three';
 import { logger as Logger } from '../../utils/logger';
 import { ColliderContactState } from './PhysicsEngine';
 
@@ -41,6 +42,31 @@ export class MuJoCoPhysicsEngine {
       x: p[0],
       y: -p[2],
       z: p[1]
+    };
+  }
+
+  // Quaternion Alignment: Q_align = -90 deg about X.
+  // threeQuat = (x, y, z, w)
+  // q_transformed = Q_align * q_three * Q_align⁻¹
+  // q_mujoco = (w, x, y, z) [scalar-first]
+  public static threeQuatToMuJoCo(q: { x: number; y: number; z: number; w: number }): [number, number, number, number] {
+    const threeQ = new THREE.Quaternion(q.x, q.y, q.z, q.w);
+    const qAlign = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+    const qAlignInv = qAlign.clone().invert();
+    const qTransformed = qAlign.clone().multiply(threeQ).multiply(qAlignInv);
+    return [qTransformed.w, qTransformed.x, qTransformed.y, qTransformed.z];
+  }
+
+  public static mujocoQuatToThree(qWxyz: [number, number, number, number]): { x: number; y: number; z: number; w: number } {
+    const qMj = new THREE.Quaternion(qWxyz[1], qWxyz[2], qWxyz[3], qWxyz[0]);
+    const qAlign = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+    const qAlignInv = qAlign.clone().invert();
+    const qThree = qAlignInv.clone().multiply(qMj).multiply(qAlign);
+    return {
+      x: qThree.x,
+      y: qThree.y,
+      z: qThree.z,
+      w: qThree.w
     };
   }
 
@@ -90,6 +116,52 @@ export class MuJoCoPhysicsEngine {
     if (!this.data) throw new Error('Data not initialized');
     this.cachedCtrl = this.data.ctrl;
     return this.cachedCtrl as Float64Array;
+  }
+
+  public static getModule(): MainModule | null {
+    return MuJoCoPhysicsEngine.mujocoModule;
+  }
+
+  public getModel(): MjModel | null {
+    return this.model;
+  }
+
+  public getData(): MjData | null {
+    return this.data;
+  }
+
+  public loadMJCFModel(xmlString: string): void {
+    const module = MuJoCoPhysicsEngine.mujocoModule;
+    if (!module) {
+      throw new Error('MuJoCo module not initialized');
+    }
+
+    try {
+      if (this.model) {
+        this.model.delete();
+        this.model = null;
+      }
+      if (this.data) {
+        this.data.delete();
+        this.data = null;
+      }
+
+      module.FS.writeFile('/model.xml', xmlString);
+
+      this.model = module.MjModel.mj_loadXML('/model.xml');
+      if (!this.model) {
+        throw new Error('Failed to load MJCF model');
+      }
+
+      this.data = new module.MjData(this.model);
+      this.initialized = true;
+      this.isPhysicsBroken = false;
+      Logger.info('MuJoCoPhysicsEngine: MJCF model loaded successfully');
+    } catch (error) {
+      Logger.error('MuJoCoPhysicsEngine: Failed to load MJCF model', error);
+      this.isPhysicsBroken = true;
+      throw error;
+    }
   }
 
   public async init(): Promise<void> {
