@@ -13,7 +13,6 @@
     "sync-types": "node scripts/sync-types.mjs"
   },
   "dependencies": {
-    "@dimforge/rapier3d-compat": "^0.19.3",
     "@fontsource/geist-mono": "^5.2.8",
     "@fontsource/geist-sans": "^5.2.5",
     "@mujoco/mujoco": "^3.10.0",

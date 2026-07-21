@@ -1,7 +1,7 @@
 import { ObjectPreset } from '../../constants/objectPresets';
 import { MainModule, MjModel, MjData } from '@mujoco/mujoco';
 
-export interface MuJoCoContactPair {
+export interface ContactPair {
   geom1Id: number;
   geom2Id: number;
   name1: string;
@@ -12,7 +12,7 @@ export interface MuJoCoContactPair {
   force: number;
 }
 
-export class MuJoCoCollisionAdapter {
+export class CollisionAdapter {
   /**
    * Helper to map Rapier preset shape properties to MuJoCo XML geoms
    */
@@ -40,8 +40,8 @@ export class MuJoCoCollisionAdapter {
     module: MainModule,
     model: MjModel,
     data: MjData
-  ): MuJoCoContactPair[] {
-    const pairs: MuJoCoContactPair[] = [];
+  ): ContactPair[] {
+    const pairs: ContactPair[] = [];
     const ncon = data.ncon;
     if (ncon <= 0) return pairs;
 

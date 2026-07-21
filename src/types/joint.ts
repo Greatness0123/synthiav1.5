@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-
 export interface JointLimit {
   dof: number;
   x: [number, number];

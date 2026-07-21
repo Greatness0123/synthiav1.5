@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { MuJoCoPhysicsEngine } from './MuJoCoPhysicsEngine';
+import { PhysicsEngine } from './PhysicsEngine';
 import { logger as Logger } from '../../utils/logger';
 
-export class MuJoCoMotorController {
+export class MotorController {
   private model: any = null;
   private data: any = null;
   private actuatorMap: Map<string, number[]> = new Map(); // boneName -> [actuatorIds]
@@ -31,7 +31,7 @@ export class MuJoCoMotorController {
     this.globalDampingScale = 1.0;
     this.limpModeActive = false;
 
-    Logger.info(`MuJoCoMotorController: Initialized with ${model.nu} actuators.`);
+    Logger.info(`MotorController: Initialized with ${model.nu} actuators.`);
   }
 
   public setTargets(currentTargets: Map<string, any>): void {
@@ -112,11 +112,11 @@ export class MuJoCoMotorController {
         this.model.actuator_biasprm[i * 3 + 2] = 0;
         this.data.ctrl[i] = 0;
       }
-      Logger.info('MuJoCoMotorController: Limp mode activated. All gains zeroed.');
+      Logger.info('MotorController: Limp mode activated. All gains zeroed.');
     } else {
       // Restore standard scaled gains
       this.applyGainsToModel();
-      Logger.info('MuJoCoMotorController: Limp mode deactivated. Gains restored.');
+      Logger.info('MotorController: Limp mode deactivated. Gains restored.');
     }
   }
 
@@ -150,7 +150,7 @@ export class MuJoCoMotorController {
     const qZ = xquat[capsuleBodyId * 4 + 3];
 
     // Convert MuJoCo scalar-first orientation of capsule to Three.js coordinates
-    const threeQuatObj = MuJoCoPhysicsEngine.mujocoQuatToThree([qW, qX, qY, qZ]);
+    const threeQuatObj = PhysicsEngine.mujocoQuatToThree([qW, qX, qY, qZ]);
     const q = new THREE.Quaternion(threeQuatObj.x, threeQuatObj.y, threeQuatObj.z, threeQuatObj.w);
 
     // Compute upright balance error relative to world vertical axis (0, 1, 0)
@@ -170,7 +170,7 @@ export class MuJoCoMotorController {
       qvel[dofAdr + 4],
       qvel[dofAdr + 5]
     ];
-    const angVelWorld = MuJoCoPhysicsEngine.mujocoToWorld(angVelMj);
+    const angVelWorld = PhysicsEngine.mujocoToWorld(angVelMj);
 
     // Scale balancing gains dynamically
     const BALANCE_KP = 100.0 * this.globalStiffnessScale;
@@ -191,7 +191,7 @@ export class MuJoCoMotorController {
     }
 
     // Convert balancing torque back to MuJoCo coordinate system
-    const torqueMj = MuJoCoPhysicsEngine.worldToMuJoCo(torqueWorld);
+    const torqueMj = PhysicsEngine.worldToMuJoCo(torqueWorld);
 
     // Apply directly into xfrc_applied for the capsule body
     const xfrc = this.data.xfrc_applied;

@@ -5,17 +5,9 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { WorldEngine } from "../engine/WorldEngine";
 import { PhysicsEngine } from "../engine/PhysicsEngine";
-import { MuJoCoPhysicsEngine } from "../engine/MuJoCoPhysicsEngine";
 import { AudioEngine } from "../engine/AudioEngine";
 import { ObjectManager } from "../engine/ObjectManager";
-import { MuJoCoObjectManager } from "../engine/MuJoCoObjectManager";
-import { RagdollBuilder } from "../engine/RagdollBuilder";
 import { HumanoidPhysicsBinder } from "../engine/HumanoidPhysicsBinder";
-import { HumanoidPhysicsBinderMuJoCo } from "../engine/HumanoidPhysicsBinderMuJoCo";
-import { ProceduralHumanoidBuilder, ProceduralBuildResult } from "../engine/ProceduralHumanoidBuilder";
-import { ProceduralMotorController } from "../engine/ProceduralMotorController";
-import { ObservationBuilder } from "../engine/ObservationBuilder";
-import { BODY_TYPE_CONFIGS } from "../../constants/bodyTypes";
 import { useWorldStore } from "../../store/worldStore";
 import { useAgentStore } from "../../store/agentStore";
 import { useConnectionStore } from "../../store/connectionStore";
@@ -32,16 +24,9 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   const { sendMessage } = useCoordinator();
   const worldEngineRef = useRef<WorldEngine | null>(null);
   const physicsEngineRef = useRef<PhysicsEngine | null>(null);
-  const mujocoEngineRef = useRef<MuJoCoPhysicsEngine | null>(null);
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const objectManagerRef = useRef<ObjectManager | null>(null);
-  const mujocoObjectManagerRef = useRef<MuJoCoObjectManager | null>(null);
-  const ragdollBuilderRef = useRef<RagdollBuilder | null>(null);
   const humanoidPhysicsBinderRef = useRef<HumanoidPhysicsBinder | null>(null);
-  const proceduralBuilderRef = useRef<ProceduralHumanoidBuilder | null>(null);
-  const proceduralMotorRef = useRef<ProceduralMotorController | null>(null);
-  const proceduralBuildResultRef = useRef<ProceduralBuildResult | null>(null);
-  const proceduralObsBuilderRef = useRef<ObservationBuilder | null>(null);
 
   const worldStore = useWorldStore();
   const agentStore = useAgentStore();
@@ -57,17 +42,8 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
     const init = async () => {
       try {
-        const useMuJoCo = useWorldStore.getState().useMuJoCo;
-
-        let physicsEngine: any;
-        if (useMuJoCo) {
-          Logger.info("useWorld: Initializing MuJoCo physics...");
-          physicsEngine = new MuJoCoPhysicsEngine();
-          mujocoEngineRef.current = physicsEngine;
-        } else {
-          Logger.info("useWorld: Initializing Rapier physics...");
-          physicsEngine = new PhysicsEngine();
-        }
+        Logger.info("useWorld: Initializing MuJoCo physics...");
+        const physicsEngine = new PhysicsEngine();
         physicsEngineRef.current = physicsEngine;
         await physicsEngine.init();
         if (cancelled) {
@@ -93,22 +69,12 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
         );
         worldEngineRef.current = worldEngine;
 
-        let objectManager: any;
-        if (useMuJoCo) {
-          objectManager = new MuJoCoObjectManager(
-            physicsEngine,
-            worldEngine.getScene(),
-            audioEngine
-          );
-          mujocoObjectManagerRef.current = objectManager;
-        } else {
-          objectManager = new ObjectManager(
-            physicsEngine.getWorld(),
-            worldEngine.getScene(),
-            audioEngine,
-          );
-          objectManagerRef.current = objectManager;
-        }
+        const objectManager = new ObjectManager(
+          physicsEngine,
+          worldEngine.getScene(),
+          audioEngine
+        );
+        objectManagerRef.current = objectManager;
 
         if (cancelled) {
           physicsEngine.cleanup();
@@ -139,7 +105,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
         const cam = worldEngine.getCameraManager();
         cam.onDragChanged = (dragging, object) => {
-          const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+          const activeObjManager = objectManagerRef.current;
           if (!activeObjManager) return;
 
           if (!object) {
@@ -155,7 +121,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
           );
         };
         cam.onDragEnd = (object) => {
-          const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+          const activeObjManager = objectManagerRef.current;
           if (!activeObjManager) return;
 
           let target: THREE.Object3D | null = object;
@@ -177,65 +143,19 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
           }
         };
 
-        const ragdollBuilder = new RagdollBuilder(
+        const humanoidPhysicsBinder = new HumanoidPhysicsBinder(
           physicsEngine,
-          worldEngine.getScene(),
+          worldEngine.getScene()
         );
-        ragdollBuilderRef.current = ragdollBuilder;
-
-        let humanoidPhysicsBinder: any;
-        if (useMuJoCo) {
-          humanoidPhysicsBinder = new HumanoidPhysicsBinderMuJoCo(
-            physicsEngine,
-            worldEngine.getScene()
-          );
-        } else {
-          humanoidPhysicsBinder = new HumanoidPhysicsBinder(
-            physicsEngine,
-            worldEngine.getScene()
-          );
-        }
         humanoidPhysicsBinderRef.current = humanoidPhysicsBinder;
 
         // Expose humanoid binder to window for step-by-step testing
         (window as any).__SYNTHIA_HUMANOID_BINDER__ = humanoidPhysicsBinder;
         (window as any).__SYNTHIA_PHYSICS_ENGINE__ = physicsEngine;
 
-        // Print step progression guide to console
-        Logger.info(`
-╔════════════════════════════════════════════════════════════════════════════╗
-║  HUMANOID PHYSICS BINDER - STEP-BY-STEP DEBUG INTERFACE                   ║
-╠════════════════════════════════════════════════════════════════════════════╣
-║                                                                            ║
-║  STEP A (Current): Bones loaded with debug spheres - NO PHYSICS YET      ║
-║                                                                            ║
-║  To progress through steps, use console:                                  ║
-║                                                                            ║
-║    await __SYNTHIA_HUMANOID_BINDER__.nextStep()                           ║
-║      → A→B: Creates rigid bodies + colliders (no joints)                  ║
-║      → B→C: Adds spherical joints with ZERO motors (floppy ragdoll)       ║
-║      → C→D: Activates motors with LOW stiffness (20/5)                    ║
-║                                                                            ║
-║  Once in STEP D, tune stiffness/damping incrementally:                    ║
-║                                                                            ║
-║    await __SYNTHIA_HUMANOID_BINDER__.adjustMotors(stiffness, damping)     ║
-║      Try: 20/5 → 50/8 → 100/10 → 150/12                                   ║
-║                                                                            ║
-║  View diagnostics:                                                         ║
-║                                                                            ║
-║    __SYNTHIA_HUMANOID_BINDER__.getDiagnostics()                           ║
-║                                                                            ║
-║  Get motor settings:                                                       ║
-║                                                                            ║
-║    __SYNTHIA_HUMANOID_BINDER__.getMotorSettings()                         ║
-║                                                                            ║
-╚════════════════════════════════════════════════════════════════════════════╝
-        `);
-
         Logger.info("useWorld: Starting animation loop...");
         worldEngineRef.current.start(() => {
           const physics = physicsEngineRef.current;
-          const ragdoll = ragdollBuilderRef.current;
           const humanoidBinder = humanoidPhysicsBinderRef.current;
 
           // ABORT IMMEDIATELY IF RAGDOLL IS BUILDING/REBUILDING
@@ -243,24 +163,11 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
             return;
           }
 
-          const useMuJoCo = useWorldStore.getState().useMuJoCo;
-          if (useMuJoCo) {
-            try {
-              mujocoObjectManagerRef.current?.update();
-              mujocoObjectManagerRef.current?.syncVisuals();
-            } catch (error) {
-              Logger.warn("MuJoCoObjectManager update error caught safely", error);
-            }
-          } else {
-            const eq = physics.getEventQueue();
-            if (eq) {
-              try {
-                objectManagerRef.current?.update(eq);
-                objectManagerRef.current?.syncVisuals();
-              } catch (error) {
-                Logger.warn("ObjectManager update error caught safely", error);
-              }
-            }
+          try {
+            objectManagerRef.current?.update();
+            objectManagerRef.current?.syncVisuals();
+          } catch (error) {
+            Logger.warn("ObjectManager update error caught safely", error);
           }
 
           if (worldStore.bodyType === 'humanoid' && humanoidBinder) {
@@ -310,34 +217,6 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
               Logger.warn('HumanoidPhysicsBinder sync failed:', error);
             }
           }
-
-          // ── Procedural Model Sync ──────────────────────────────────
-          if (worldStore.useProcedural && proceduralBuildResultRef.current && proceduralBuilderRef.current) {
-            try {
-              proceduralBuilderRef.current.syncVisuals(proceduralBuildResultRef.current.parts);
-              const pelvisPart = proceduralBuildResultRef.current.parts.get('pelvis');
-              if (pelvisPart?.body.isValid()) {
-                const pp = pelvisPart.body.translation();
-                worldEngineRef.current?.getCameraManager().update(undefined, new THREE.Vector3(pp.x, pp.y, pp.z));
-              }
-            } catch (error) {
-              Logger.warn('Procedural model sync failed:', error);
-            }
-          } else if (ragdoll) {
-            try {
-              ragdoll.syncVisuals();
-              const state = ragdoll.getJointState();
-              lastJointStateRef.current = state;
-
-              const pelvis = state.pelvis;
-              if (pelvis) {
-                const pos = new THREE.Vector3(pelvis.position[0], pelvis.position[1], pelvis.position[2]);
-                worldEngineRef.current?.getCameraManager().update(undefined, pos);
-              }
-            } catch (error) {
-              Logger.warn('Ragdoll state pipeline execution deferred safely:', error);
-            }
-          }
         });
 
         setIsReady(true);
@@ -357,14 +236,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
     return () => {
       cancelled = true;
       worldEngineRef.current?.stop();
-      if (proceduralBuildResultRef.current && proceduralBuilderRef.current) {
-        proceduralBuilderRef.current.cleanup(
-          proceduralBuildResultRef.current.parts,
-          proceduralBuildResultRef.current.rootGroup
-        );
-      }
       physicsEngineRef.current?.cleanup();
-      mujocoEngineRef.current?.cleanup();
     };
   }, [containerRef]);
 
@@ -379,16 +251,10 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       humanoidPhysicsBinderRef.current.friction = worldStore.globalFriction;
     }
     // Also update friction on all spawned objects
-    if (worldStore.useMuJoCo) {
-      if (mujocoObjectManagerRef.current) {
-        mujocoObjectManagerRef.current.setGlobalFriction(worldStore.globalFriction);
-      }
-    } else {
-      if (objectManagerRef.current) {
-        objectManagerRef.current.setGlobalFriction(worldStore.globalFriction);
-      }
+    if (objectManagerRef.current) {
+      objectManagerRef.current.setGlobalFriction(worldStore.globalFriction);
     }
-  }, [worldStore.globalFriction, worldStore.useMuJoCo]);
+  }, [worldStore.globalFriction]);
 
   useEffect(() => {
     if (humanoidPhysicsBinderRef.current) {
@@ -403,19 +269,10 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [worldStore.showDebugJoints]);
 
   useEffect(() => {
-    // When toggling to ragdoll, switch to procedural model so AI can control it.
-    // When toggling to rigid, switch back to GLB model.
     if (worldStore.bodyType === 'humanoid') {
-      const shouldUseProcedural = worldStore.bodyMode === 'ragdoll';
-      if (worldStore.useProcedural !== shouldUseProcedural) {
-        worldStore.setUseProcedural(shouldUseProcedural);
-        return; // Rebuild effect will handle the rest
-      }
       if (humanoidPhysicsBinderRef.current) {
         humanoidPhysicsBinderRef.current.setMode(worldStore.bodyMode);
       }
-    } else if (ragdollBuilderRef.current) {
-      ragdollBuilderRef.current.setMode(worldStore.bodyMode);
     }
   }, [worldStore.bodyMode, worldStore.bodyType]);
 
@@ -432,19 +289,19 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   useEffect(() => {
     const handleRename = (e: any) => {
       const { id, name } = e.detail;
-      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      const activeObjManager = objectManagerRef.current;
       activeObjManager?.renameObject(id, name);
     };
 
     const handleUpdatePhysics = (e: any) => {
       const { id, updates } = e.detail;
-      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      const activeObjManager = objectManagerRef.current;
       activeObjManager?.updateObjectPhysics(id, updates);
     };
 
     const handleDeleteObject = (e: any) => {
       const { id } = e.detail;
-      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      const activeObjManager = objectManagerRef.current;
       // Detach TransformControls before removing the object to prevent
       // "not part of scene graph" errors from the gizmo tracking a removed object.
       worldEngineRef.current?.getCameraManager().attachTransform(null);
@@ -469,7 +326,6 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
     worldEngineRef.current?.getCameraManager().setMode(worldStore.cameraMode);
   }, [worldStore.cameraMode]);
 
-
   const findSpawnPosition = useCallback((skipHumanoidCheck = false): THREE.Vector3 => {
     let humanoidPos = new THREE.Vector3(0, 0, 5);
     const binder = humanoidPhysicsBinderRef.current;
@@ -480,7 +336,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       }
     }
 
-    const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+    const activeObjManager = objectManagerRef.current;
     const spawnRadius = 2.2;
     let spawnPos = new THREE.Vector3();
     let placed = false;
@@ -521,7 +377,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   useEffect(() => {
     const handleSpawnEvent = (e: Event) => {
       const { presetId } = (e as CustomEvent).detail;
-      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      const activeObjManager = objectManagerRef.current;
       if (!activeObjManager) {
         Logger.warn('useWorld: spawnObject called but activeObjManager not ready');
         return;
@@ -547,7 +403,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
         scene: THREE.Group;
         isTerrain: boolean;
       };
-      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      const activeObjManager = objectManagerRef.current;
       if (!activeObjManager) return;
 
       const box = new THREE.Box3().setFromObject(scene);
@@ -570,13 +426,10 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [findSpawnPosition]);
 
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     const handlePush = (e: any) => {
       const { partName, impulse } = e.detail;
       if (worldStore.bodyType === 'humanoid' && humanoidPhysicsBinderRef.current) {
         humanoidPhysicsBinderRef.current.push(partName, new THREE.Vector3(impulse.x, impulse.y, impulse.z));
-      } else if (ragdollBuilderRef.current) {
-        ragdollBuilderRef.current.push(partName, new THREE.Vector3(impulse.x, impulse.y, impulse.z));
       }
     };
 
@@ -585,10 +438,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [worldStore.bodyType]);
 
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     const handleAction = (e: any) => {
-      // Fix 5: Clear any pending timeline so the new action isn't overwritten
-      // by stale interpolated values from the previous timeline.
       const binder = humanoidPhysicsBinderRef.current as any;
       if (binder) {
         binder['timelineQueue'] = [];
@@ -598,19 +448,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       const { jointOverrides, programSequence, sequence, activeGaitPhase } = e.detail;
       Logger.info(`[ACTION_PIPELINE] useWorld handling action: jointOverrides=${Object.keys(jointOverrides || {}).length} keys, sequence=${Array.isArray(sequence) ? sequence.length : 0}, programSequence=${JSON.stringify(programSequence || [])}`);
 
-      if (worldStore.useProcedural && proceduralMotorRef.current) {
-        try {
-          const targets = new Map<string, any>();
-          if (jointOverrides && typeof jointOverrides === 'object') {
-            for (const [key, value] of Object.entries(jointOverrides)) {
-              targets.set(key, value);
-            }
-          }
-          proceduralMotorRef.current.setTargets(targets);
-        } catch (err) {
-          Logger.warn('Procedural motor action failed', err);
-        }
-      } else if (worldStore.bodyType === 'humanoid' && humanoidPhysicsBinderRef.current) {
+      if (worldStore.bodyType === 'humanoid' && humanoidPhysicsBinderRef.current) {
         try {
           const skeleton = binder['skeleton'];
 
@@ -654,7 +492,6 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
             humanoidPhysicsBinderRef.current.executeProgramSequence(programSequence);
           }
         } catch (err) {
-          // Fix 6: Send error feedback to coordinator so the AI knows its action failed
           Logger.warn('Action validation failed', err);
           sendMessage('action_feedback', {
             agentId: 'agent_a',
@@ -668,18 +505,14 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
     window.addEventListener('synthia:action', handleAction);
     return () => window.removeEventListener('synthia:action', handleAction);
-  }, [worldStore.bodyType, worldStore.useProcedural, sendMessage]);
+  }, [worldStore.bodyType, sendMessage]);
 
   // ── Reset Pose Event Handler ─────────────────────────────────────────
-  // Dispatched by BodyControls.tsx "RESET POSE" button and console scripts.
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     const handleResetPose = () => {
       const binder = humanoidPhysicsBinderRef.current;
       if (binder) {
         binder.resetPose(worldStore.spawnPoint);
-      } else if (ragdollBuilderRef.current) {
-        ragdollBuilderRef.current.resetToSpawn(worldStore.spawnPoint);
       }
     };
     window.addEventListener('synthia:resetPose', handleResetPose);
@@ -687,10 +520,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [worldStore.spawnPoint]);
 
   // ── Root Motion Event Handler ────────────────────────────────────────
-  // Accepts { dx, dz } in meters and applies as capsule translation delta.
-  // Used by console animation scripts to move the character forward.
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     const handleRootMotion = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
       const { dx = 0, dz = 0 } = detail;
@@ -706,120 +536,50 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
   useEffect(() => {
     if (!isReady) return;
-    if (useWorldStore.getState().useMuJoCo) return;
 
     const build = async () => {
       // Detach TransformControls before any cleanup to prevent
       // "not part of scene graph" errors from the gizmo tracking a removed object.
       worldEngineRef.current?.getCameraManager().attachTransform(null);
 
-      // Clean up previous procedural model if switching modes
-      if (proceduralBuildResultRef.current) {
-        proceduralBuilderRef.current?.cleanup(
-          proceduralBuildResultRef.current.parts,
-          proceduralBuildResultRef.current.rootGroup
-        );
-        proceduralBuildResultRef.current = null;
-        proceduralMotorRef.current = null;
-        proceduralObsBuilderRef.current = null;
-      }
-
       if (worldStore.bodyType === 'humanoid' && humanoidPhysicsBinderRef.current) {
-        ragdollBuilderRef.current?.cleanup();
+        const binder = humanoidPhysicsBinderRef.current;
 
-        if (worldStore.useProcedural) {
-          // ── Procedural Model Path ──────────────────────────────────
-          Logger.info('useWorld: Building procedural humanoid model');
-          const builder = new ProceduralHumanoidBuilder(
-            worldEngineRef.current!.getScene(),
-            physicsEngineRef.current!
-          );
-          proceduralBuilderRef.current = builder;
+        // STEP A: Load model at x=0, z=0, y=0 initially to read bind pose bone positions
+        const probePoint = new THREE.Vector3(0, 0, 0);
+        const stepA = await binder.loadAndVisualizeBindPose(probePoint);
+        if (!stepA) { Logger.error('useWorld: STEP A failed'); return; }
 
-          const spawnPoint = new THREE.Vector3(
-            worldStore.spawnPoint.x,
-            worldStore.spawnPoint.y,
-            worldStore.spawnPoint.z
-          );
-          const result = builder.build(spawnPoint);
-          proceduralBuildResultRef.current = result;
+        // Reposition the model root. Since model root is at the feet, we use spawnPoint directly.
+        binder.repositionModel(
+          worldStore.spawnPoint.x,
+          worldStore.spawnPoint.y,
+          worldStore.spawnPoint.z
+        );
 
-          const motorController = new ProceduralMotorController();
-          motorController.init(result);
-          proceduralMotorRef.current = motorController;
+        binder.renderDebugSpheres(worldStore.showDebugJoints);
 
-          // Initialize ObservationBuilder for procedural model
-          const obsBuilder = new ObservationBuilder();
-          const pelvisBody = result.rigidBodiesMap.get('pelvis');
-          if (pelvisBody) obsBuilder.registerJoint('pelvis', pelvisBody, null);
-          for (const [name, body] of result.rigidBodiesMap) {
-            if (name === 'pelvis') continue;
-            obsBuilder.registerJoint(name, body, pelvisBody ?? null);
+        // STEP B: Create single capsule rigid body
+        const stepB = await binder.createRigidBodiesAndColliders();
+        if (!stepB) { Logger.error('useWorld: STEP B failed'); return; }
+        Logger.info('useWorld: STEP B complete — single capsule created');
+
+        // STEP C & D: No-ops for single capsule, but we call them for API compat
+        await binder.createJointsWithZeroMotors();
+        await binder.activateMotorsWithStiffnessAndDamping(80, 10);
+        Logger.info('useWorld: STEP D complete — model is standing');
+
+        // Activate multi-body PD motor control if enabled
+        if (worldStore.useMultiBodyPD) {
+          const mbSuccess = await binder.activateMultiBody();
+          if (mbSuccess) {
+            Logger.info('useWorld: Multi-body PD motor control activated');
+          } else {
+            Logger.warn('useWorld: Multi-body activation failed, using single capsule');
           }
-          obsBuilder.setGroundHeight(0);
-          proceduralObsBuilderRef.current = obsBuilder;
-
-          // If ragdoll mode is active, start the procedural model in limp mode
-          if (worldStore.bodyMode === 'ragdoll') {
-            proceduralMotorRef.current?.setLimpMode(true);
-          }
-
-          Logger.info('useWorld: Procedural humanoid built');
-        } else {
-          // ── GLB Model Path (original) ──────────────────────────────
-          const binder = humanoidPhysicsBinderRef.current;
-
-          // STEP A: Load model at x=0, z=0, y=0 initially to read bind pose bone positions
-          const probePoint = new THREE.Vector3(0, 0, 0);
-          const stepA = await binder.loadAndVisualizeBindPose(probePoint);
-          if (!stepA) { Logger.error('useWorld: STEP A failed'); return; }
-
-          // Reposition the model root. Since model root is at the feet, we use spawnPoint directly.
-          binder.repositionModel(
-            worldStore.spawnPoint.x,
-            worldStore.spawnPoint.y,
-            worldStore.spawnPoint.z
-          );
-
-          binder.renderDebugSpheres(worldStore.showDebugJoints);
-
-          // STEP B: Create single capsule rigid body
-          const stepB = await binder.createRigidBodiesAndColliders();
-          if (!stepB) { Logger.error('useWorld: STEP B failed'); return; }
-          Logger.info('useWorld: STEP B complete — single capsule created');
-
-          // STEP C & D: No-ops for single capsule, but we call them for API compat
-          await binder.createJointsWithZeroMotors();
-          await binder.activateMotorsWithStiffnessAndDamping(80, 10);
-          Logger.info('useWorld: STEP D complete — model is standing');
-
-          // Activate multi-body PD motor control if enabled
-          if (worldStore.useMultiBodyPD) {
-            const mbSuccess = await binder.activateMultiBody();
-            if (mbSuccess) {
-              Logger.info('useWorld: Multi-body PD motor control activated');
-            } else {
-              Logger.warn('useWorld: Multi-body activation failed, using single capsule');
-            }
-          }
-
-          binder.setMode(worldStore.bodyMode);
         }
-      } else if (ragdollBuilderRef.current) {
-        humanoidPhysicsBinderRef.current?.cleanup();
-        const config = BODY_TYPE_CONFIGS[worldStore.bodyType];
-        if (config) {
-          const spawnPoint = new THREE.Vector3(
-            worldStore.spawnPoint.x,
-            worldStore.spawnPoint.y,
-            worldStore.spawnPoint.z
-          );
-          await ragdollBuilderRef.current.build(
-            config,
-            spawnPoint,
-            worldStore.simplifiedSkeleton,
-          );
-        }
+
+        binder.setMode(worldStore.bodyMode);
       }
     };
 
@@ -827,14 +587,12 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [
     isReady,
     worldStore.bodyType,
-    worldStore.simplifiedSkeleton,
     worldStore.spawnPoint,
-    worldStore.useProcedural,
     worldStore.useMultiBodyPD,
   ]);
 
   useEffect(() => {
-    if (!isReady || !worldEngineRef.current) return;
+    if (!isReady) return;
 
     const interval = setInterval(() => {
       const nextState = worldStore.lightState === "day" ? "night" : "day";
@@ -886,7 +644,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   const captureWorldState = useCallback(async () => {
     if (
       !worldEngineRef.current ||
-      (!ragdollBuilderRef.current && !humanoidPhysicsBinderRef.current) ||
+      !humanoidPhysicsBinderRef.current ||
       !audioEngineRef.current
     )
       return null;
@@ -919,12 +677,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
     // Build local-frame observation for AI proprioception
     let proprioception: any = null;
-    if (worldStore.useProcedural && proceduralObsBuilderRef.current) {
-      const pelvisBody = proceduralBuildResultRef.current?.rigidBodiesMap.get('pelvis');
-      if (pelvisBody?.isValid()) {
-        proprioception = proceduralObsBuilderRef.current.buildVLMProprioception(pelvisBody);
-      }
-    } else if (humanoidPhysicsBinderRef.current?.mbActive) {
+    if (humanoidPhysicsBinderRef.current?.mbActive) {
       const obsBuilder = humanoidPhysicsBinderRef.current.getObservationBuilder();
       const capsuleBody = humanoidPhysicsBinderRef.current.getCapsuleBody();
       if (capsuleBody?.isValid()) {
@@ -941,7 +694,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       contact_forces = humanoidPhysicsBinderRef.current.getContactForces();
     }
 
-    const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+    const activeObjManager = objectManagerRef.current;
     const objects = activeObjManager
       ? Array.from(activeObjManager.getObjects().values()).map((obj: any) => ({
           id: obj.id,
@@ -1004,20 +757,18 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
   return {
     isReady,
-    getRagdoll: () => ragdollBuilderRef.current,
+    getRagdoll: () => null,
     spawnObject: (presetId: string, pos: THREE.Vector3) => {
-      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      const activeObjManager = objectManagerRef.current;
       return activeObjManager?.spawnObject(presetId, pos) || null;
     },
     deleteObject: (id: string) => {
-      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      const activeObjManager = objectManagerRef.current;
       activeObjManager?.deleteObject(id);
     },
     push: (partName: string, impulse: THREE.Vector3) => {
       if (worldStore.bodyType === 'humanoid' && humanoidPhysicsBinderRef.current) {
         humanoidPhysicsBinderRef.current.push(partName, impulse);
-      } else if (ragdollBuilderRef.current) {
-        ragdollBuilderRef.current.push(partName, impulse);
       }
     },
     captureWorldState,

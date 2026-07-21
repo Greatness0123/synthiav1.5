@@ -1,21 +1,83 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import RAPIER from '@dimforge/rapier3d-compat';
 import { PhysicsEngine } from './PhysicsEngine';
+import { BodyManager } from './BodyManager';
+import { MotorController } from './MotorController';
 import type { TimelineSequence, ValidateResult } from '../../types/joint';
 import { clampAngle, isScalarPayload, normalizeBoneKey } from '../../types/joint';
 import SYNTHIA_RIG_CONSTRAINTS from '../../constants/rigConstraints';
 import { logger as Logger } from '../../utils/logger';
-import { synthiaToast } from '../../components/ui/Toast';
-import { RAGDOLL_GROUP, ENVIRONMENT_GROUP, getCollisionMask } from '../../constants/physics';
-import { HumanoidMultiBodyManager, BONE_PD_GAINS } from './HumanoidMultiBodyManager';
-import { installDiagnostic, PhysicsDiagnostic } from './PhysicsDiagnostic';
 import { ObservationBuilder } from './ObservationBuilder';
+import { AvatarSynchronizer } from './AvatarSynchronizer';
 import {
   getAnatomicalLimitForBone,
   WORLD_BOUNDARY_RADIUS,
 } from '../../constants/anatomicalLimits';
 import type { ActionApplyResult, RejectedAction } from '../../types/agent';
+
+// Proxy mimicking RAPIER.RigidBody so that ObservationBuilder and AvatarSynchronizer can work seamlessly with zero duplication!
+export class BodyProxy {
+  private bodyId: number;
+  private model: any;
+  private data: any;
+
+  constructor(bodyId: number, model: any, data: any, _module: any) {
+    this.bodyId = bodyId;
+    this.model = model;
+    this.data = data;
+  }
+
+  public isValid(): boolean {
+    return this.bodyId >= 0 && this.model !== null;
+  }
+
+  public translation() {
+    const idx = this.bodyId * 3;
+    const posMj: [number, number, number] = [
+      this.data.xpos[idx],
+      this.data.xpos[idx + 1],
+      this.data.xpos[idx + 2]
+    ];
+    return PhysicsEngine.mujocoToWorld(posMj);
+  }
+
+  public rotation() {
+    const idx = this.bodyId * 4;
+    const qMj: [number, number, number, number] = [
+      this.data.xquat[idx],
+      this.data.xquat[idx + 1],
+      this.data.xquat[idx + 2],
+      this.data.xquat[idx + 3]
+    ];
+    const threeQuatObj = PhysicsEngine.mujocoQuatToThree(qMj);
+    return {
+      x: threeQuatObj.x,
+      y: threeQuatObj.y,
+      z: threeQuatObj.z,
+      w: threeQuatObj.w
+    };
+  }
+
+  public linvel() {
+    const idx = this.bodyId * 6;
+    const lMj: [number, number, number] = [
+      this.data.cvel[idx + 3],
+      this.data.cvel[idx + 4],
+      this.data.cvel[idx + 5]
+    ];
+    return PhysicsEngine.mujocoToWorld(lMj);
+  }
+
+  public angvel() {
+    const idx = this.bodyId * 6;
+    const aMj: [number, number, number] = [
+      this.data.cvel[idx],
+      this.data.cvel[idx + 1],
+      this.data.cvel[idx + 2]
+    ];
+    return PhysicsEngine.mujocoToWorld(aMj);
+  }
+}
 
 interface BoneInfo {
   bone: THREE.Bone;
@@ -24,14 +86,6 @@ interface BoneInfo {
 }
 
 export class HumanoidPhysicsBinder {
-
-  private static readonly TPOSE_REFERENCE: Record<string, { x: number, y: number, z: number, w: number }> = {
-    'mixamorigrightarm': { x: -0.0246, y: 0.0026, z: -0.1035, w: 0.9943 },
-    'mixamorigleftarm': { x: -0.0246, y: -0.0026, z: 0.1035, w: 0.9943 },
-    'mixamorigrightshoulder': { x: 0.4844, y: -0.571, z: 0.5262, w: 0.4031 },
-    'mixamorigleftshoulder': { x: 0.4844, y: 0.571, z: -0.5262, w: 0.4031 },
-  };
-
   private physicsEngine: PhysicsEngine;
   private scene: THREE.Scene;
   private modelRoot: THREE.Group | null = null;
@@ -40,24 +94,23 @@ export class HumanoidPhysicsBinder {
   private boneInfoMap: Map<string, BoneInfo> = new Map();
   private bindPoseQuaternions: Map<string, THREE.Quaternion> = new Map();
   private debugSpheres: Map<string, THREE.Mesh> = new Map();
-  private aiCameraHelper: THREE.Mesh | null = null;
   private cameraHelpers: THREE.Group[] = [];
   private isLoaded: boolean = false;
 
-  private capsuleBody: RAPIER.RigidBody | null = null;
-  private capsuleCollider: RAPIER.Collider | null = null;
+  private bodyManager: BodyManager;
+  private motorController: MotorController;
+  private avatarSynchronizer: AvatarSynchronizer;
 
   private buildStep: 'A' | 'B' | 'C' | 'D' | null = null;
 
   public restArmAngleDeg: number = 75;
   private currentStiffness: number = 0;
   private currentDamping: number = 0;
-  private gravity: number = -9.81;
   public friction: number = 0.5;
 
   private currentTargets: Map<string, any> = new Map();
   private jointLimits: Map<string, { min: number; max: number }> = new Map();
-  private lerpSpeed: number = 0.12;
+  private _lerpSpeed: number = 0.12;
 
   private lastAiCommandTime: number = Date.now();
   private airborneTimer: number = 0;
@@ -70,7 +123,6 @@ export class HumanoidPhysicsBinder {
   private capsuleRadius: number = 0.2;
 
   private _isGrounded: boolean = true;
-
   private readonly GROUND_SNAP_THRESHOLD: number = 0.12;
 
   private upVector: THREE.Vector3 = new THREE.Vector3(0, 1, 0);
@@ -82,21 +134,25 @@ export class HumanoidPhysicsBinder {
   private capsuleCenterY: number = 0;
 
   private timelineQueue: TimelineSequence = [];
-
   private timelineSequenceStart: number | null = null;
 
-  private multiBodyManager: HumanoidMultiBodyManager | null = null;
   public mbActive: boolean = false;
-
   private observationBuilder: ObservationBuilder = new ObservationBuilder();
 
   constructor(physicsEngine: PhysicsEngine, scene: THREE.Scene) {
     this.physicsEngine = physicsEngine;
     this.scene = scene;
+    this.bodyManager = new BodyManager(physicsEngine);
+    this.motorController = new MotorController();
+    this.avatarSynchronizer = new AvatarSynchronizer(0.04);
+
+    // Silence unused fields under tsc -b strict mode
+    void this.lastAiCommandTime;
+    void this.airborneTimer;
+    void this.groundingMagnetStrength;
   }
 
   public validateAndApplyTimeline(targetSkeleton: THREE.Skeleton, sequence: TimelineSequence, options?: { activeGaitPhase?: boolean }): ValidateResult {
-
     this.lastAiCommandTime = Date.now();
     this.airborneTimer = 0;
     this.groundingMagnetStrength = 0.0;
@@ -181,9 +237,7 @@ export class HumanoidPhysicsBinder {
           sanitizedOverrides[key] = xClamped;
 
           if (constraint.allowance?.tendonSynergyLink) {
-
             const baseKey = key.replace(/(\d)$/, '1');
-
             const baseOverrideInFrame = frame.overrides?.[baseKey] !== undefined || sanitizedOverrides[baseKey] !== undefined;
             if (!baseOverrideInFrame) {
               const baseTarget = this.currentTargets.get(baseKey) as any;
@@ -195,7 +249,6 @@ export class HumanoidPhysicsBinder {
             }
           }
         } else {
-
           const xC = clampX(xVal);
           const yC = clampY(yVal);
           const zC = clampZ(zVal);
@@ -203,7 +256,6 @@ export class HumanoidPhysicsBinder {
         }
 
         if (constraint.allowance?.scapulohumeralRatio) {
-
           const armX = xVal;
           if (Math.abs(armX) > 0.523) {
             const shoulderKey = key.includes('left') ? 'mixamorigleftshoulder' : 'mixamorigrightshoulder';
@@ -238,7 +290,6 @@ export class HumanoidPhysicsBinder {
     }
 
     this.timelineQueue = appliedTimeline;
-
     return { appliedTimeline, rejections, clampingNotes, injections };
   }
 
@@ -256,8 +307,7 @@ export class HumanoidPhysicsBinder {
           resolve,
           undefined,
           (err) => {
-            Logger.error('HumanoidPhysicsBinder: Failed to load x-bot.glb', err);
-            synthiaToast.error("Model file not found — place x-bot.glb in public/models/");
+            Logger.error('HumanoidPhysicsBinderMuJoCo: Failed to load x-bot.glb', err);
             reject(err);
           }
         );
@@ -265,7 +315,6 @@ export class HumanoidPhysicsBinder {
 
       const modelRoot: THREE.Group = gltf.scene;
       this.modelRoot = modelRoot;
-
       modelRoot.userData.isSynthiaPrimitive = true;
       this.scene.add(modelRoot);
       modelRoot.position.copy(spawnPoint);
@@ -277,33 +326,28 @@ export class HumanoidPhysicsBinder {
       });
 
       if (!this.skinnedMesh) {
-        throw new Error('HumanoidPhysicsBinder: No SkinnedMesh found in model');
+        throw new Error('HumanoidPhysicsBinderMuJoCo: No SkinnedMesh found in model');
       }
 
       this.skeleton = this.skinnedMesh.skeleton;
       if (!this.skeleton || this.skeleton.bones.length === 0) {
-        throw new Error('HumanoidPhysicsBinder: Skeleton has no bones');
+        throw new Error('HumanoidPhysicsBinderMuJoCo: Skeleton has no bones');
       }
 
       modelRoot.updateMatrixWorld(true);
-
       this.extractBonePositions();
-
       this.calculateCameraVectors();
-
       this.calculateModelDimensions();
-
       this.renderDebugSpheres();
 
       this.buildStep = 'A';
       this.isLoaded = true;
       this.physicsEngine.setReady(true);
 
-      Logger.info(`HumanoidPhysicsBinder STEP A Complete: Loaded model with ${this.boneInfoMap.size} bones.`);
+      Logger.info(`HumanoidPhysicsBinderMuJoCo STEP A Complete: Loaded model with ${this.boneInfoMap.size} bones.`);
       return true;
     } catch (error) {
-      Logger.error('HumanoidPhysicsBinder STEP A: Failed', error);
-      synthiaToast.error('STEP A failed: Model loading or bone extraction error');
+      Logger.error('HumanoidPhysicsBinderMuJoCo STEP A: Failed', error);
       return false;
     } finally {
       this.physicsEngine.setMutating(false);
@@ -324,9 +368,7 @@ export class HumanoidPhysicsBinder {
     });
 
     if (highestY !== null && lowestY !== null) {
-      this.modelHeight = Math.abs(highestY - lowestY);
-
-      this.modelHeight += 0.15;
+      this.modelHeight = Math.abs(highestY - lowestY) + 0.15;
     }
 
     let leftShoulderX: number | null = null;
@@ -345,8 +387,6 @@ export class HumanoidPhysicsBinder {
       const shoulderWidth = Math.abs(leftShoulderX - rightShoulderX);
       this.capsuleRadius = Math.max(0.15, Math.min(0.3, shoulderWidth / 3));
     }
-
-    Logger.info(`HumanoidPhysicsBinder: Model dimensions — height=${this.modelHeight.toFixed(3)}, capsuleRadius=${this.capsuleRadius.toFixed(3)}, hipToFoot=${this.hipToFootDistance.toFixed(3)}`);
   }
 
   private calculateCameraVectors(): void {
@@ -392,8 +432,6 @@ export class HumanoidPhysicsBinder {
       this.upVector.applyQuaternion(headWorldQuatInv);
       this.forwardVector.applyQuaternion(headWorldQuatInv);
     }
-
-    Logger.info(`HumanoidPhysicsBinder: Camera vectors (local to head) — Up: [${this.upVector.x.toFixed(2)}, ${this.upVector.y.toFixed(2)}, ${this.upVector.z.toFixed(2)}], Forward: [${this.forwardVector.x.toFixed(2)}, ${this.forwardVector.y.toFixed(2)}, ${this.forwardVector.z.toFixed(2)}]`);
   }
 
   private extractBonePositions(): void {
@@ -403,14 +441,10 @@ export class HumanoidPhysicsBinder {
     this.bindPoseQuaternions.clear();
 
     for (const bone of this.skeleton.bones) {
-
-      if (this.isTerminal(bone)) {
-        continue;
-      }
+      if (this.isTerminal(bone)) continue;
 
       const worldPos = new THREE.Vector3();
       bone.getWorldPosition(worldPos);
-
       const canonicalName = bone.name.toLowerCase().replace(/:/g, '');
 
       this.boneInfoMap.set(canonicalName, {
@@ -421,20 +455,6 @@ export class HumanoidPhysicsBinder {
 
       this.bindPoseQuaternions.set(canonicalName, bone.quaternion.clone());
 
-      const tposeRef = HumanoidPhysicsBinder.TPOSE_REFERENCE[canonicalName];
-      if (tposeRef) {
-        const stored = this.bindPoseQuaternions.get(canonicalName)!;
-        const ref = new THREE.Quaternion(tposeRef.x, tposeRef.y, tposeRef.z, tposeRef.w);
-        const angleDiff = stored.angleTo(ref);
-        if (angleDiff > 0.02) {
-          Logger.warn(
-            `HumanoidPhysicsBinder: Bind pose for "${canonicalName}" deviates from T-pose reference by ${(angleDiff * 180 / Math.PI).toFixed(3)}°. ` +
-            `Stored: {x:${stored.x.toFixed(6)}, y:${stored.y.toFixed(6)}, z:${stored.z.toFixed(6)}, w:${stored.w.toFixed(6)}} ` +
-            `Expected: {x:${tposeRef.x.toFixed(6)}, y:${tposeRef.y.toFixed(6)}, z:${tposeRef.z.toFixed(6)}, w:${tposeRef.w.toFixed(6)}}`
-          );
-        }
-      }
-
       const limits = getAnatomicalLimitForBone(canonicalName);
       if (limits) {
         this.jointLimits.set(canonicalName, limits);
@@ -442,8 +462,6 @@ export class HumanoidPhysicsBinder {
     }
 
     this.calculateHipToFootDistance();
-
-    Logger.info(`HumanoidPhysicsBinder: Extracted ${this.boneInfoMap.size} non-terminal bones. Canonical names: ${Array.from(this.boneInfoMap.keys()).join(', ')}`);
   }
 
   private calculateHipToFootDistance(): void {
@@ -465,9 +483,6 @@ export class HumanoidPhysicsBinder {
 
     if (hipY !== null && lowestFootY !== null) {
       this.hipToFootDistance = Math.abs(hipY - lowestFootY);
-      Logger.info(`HumanoidPhysicsBinder: Hip Y=${(hipY as number).toFixed(3)}, Lowest foot Y=${(lowestFootY as number).toFixed(3)}, hipToFootDistance=${this.hipToFootDistance.toFixed(3)}`);
-    } else {
-      Logger.warn('HumanoidPhysicsBinder: Could not find hip or foot bones for height calculation, using default 0.95');
     }
   }
 
@@ -476,10 +491,7 @@ export class HumanoidPhysicsBinder {
   }
 
   public repositionModel(x: number, y: number, z: number): void {
-    if (!this.modelRoot || !this.skeleton) {
-      Logger.warn('HumanoidPhysicsBinder.repositionModel: Model not loaded yet');
-      return;
-    }
+    if (!this.modelRoot || !this.skeleton) return;
     this.modelRoot.position.set(x, y, z);
     this.modelRoot.updateMatrixWorld(true);
 
@@ -490,8 +502,6 @@ export class HumanoidPhysicsBinder {
     });
 
     this.calculateModelDimensions();
-
-    Logger.info(`HumanoidPhysicsBinder: Repositioned model to (${x.toFixed(3)}, ${y.toFixed(3)}, ${z.toFixed(3)}) and re-extracted bone positions.`);
   }
 
   public renderDebugSpheres(show: boolean = false): void {
@@ -507,7 +517,7 @@ export class HumanoidPhysicsBinder {
     this.boneInfoMap.forEach((boneInfo, boneName) => {
       const geometry = new THREE.SphereGeometry(0.02, 8, 8);
       const material = new THREE.MeshStandardMaterial({
-        color: 0xaaaaaa,
+        color: 0x55ff55,
         transparent: true,
         opacity: 0.5,
       });
@@ -515,17 +525,12 @@ export class HumanoidPhysicsBinder {
       const sphere = new THREE.Mesh(geometry, material);
       sphere.position.copy(boneInfo.worldPosition);
       this.scene.add(sphere);
-
       this.debugSpheres.set(boneName, sphere);
     });
-
-    Logger.info(`HumanoidPhysicsBinder: Rendered ${this.debugSpheres.size} debug spheres`);
   }
 
   public renderAICameraHelper(show: boolean = false, cameraData?: Array<{ label: string; position: THREE.Vector3; quaternion: THREE.Quaternion; color: number }>): void {
-
     if (!show) {
-      if (this.aiCameraHelper) this.aiCameraHelper.visible = false;
       this.cameraHelpers.forEach(h => h.visible = false);
       return;
     }
@@ -553,11 +558,6 @@ export class HumanoidPhysicsBinder {
       line.renderOrder = 1000;
       group.add(line);
 
-      const labelSprite = this.createTextSprite(cam.label, cam.color);
-      labelSprite.position.set(0, 0.25, 0);
-      labelSprite.renderOrder = 1001;
-      group.add(labelSprite);
-
       this.scene.add(group);
       this.cameraHelpers.push(group);
     }
@@ -568,43 +568,11 @@ export class HumanoidPhysicsBinder {
       helper.visible = true;
       helper.position.copy(cam.position);
       helper.quaternion.copy(cam.quaternion);
-
-      const body = helper.children[0] as THREE.Mesh;
-      if (body && body.material) {
-        (body.material as THREE.MeshBasicMaterial).color.setHex(cam.color);
-      }
-      const lineMesh = helper.children[1] as THREE.Mesh;
-      if (lineMesh && lineMesh.material) {
-        (lineMesh.material as THREE.MeshBasicMaterial).color.setHex(cam.color);
-      }
     });
-  }
-
-  private createTextSprite(text: string, color: number): THREE.Sprite {
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 64;
-    const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, 128, 64);
-    ctx.font = 'bold 40px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const hex = '#' + new THREE.Color(color).getHexString();
-    ctx.fillStyle = hex;
-    ctx.fillText(text, 64, 32);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = true;
-    const mat = new THREE.SpriteMaterial({ map: texture, depthTest: false, transparent: true });
-    const sprite = new THREE.Sprite(mat);
-    sprite.scale.set(0.5, 0.25, 1);
-    sprite.renderOrder = 1001;
-    return sprite;
   }
 
   private isTerminal(bone: THREE.Bone): boolean {
     const name = bone.name.toLowerCase();
-
     const fingerPattern = /(thumb|index|middle|ring|pinky)\d+$/;
     if (fingerPattern.test(name)) return false;
 
@@ -612,15 +580,13 @@ export class HumanoidPhysicsBinder {
     if (fingerToeTerminals.some(t => name.includes(t))) return true;
 
     if (name.endsWith('_end') || name.endsWith('end')) return true;
-
     if (bone.children.length === 0) return true;
-
     return false;
   }
 
   public async createRigidBodiesAndColliders(): Promise<boolean> {
-    if (!this.isLoaded || !this.modelRoot) {
-      Logger.error('HumanoidPhysicsBinder STEP B: Model not loaded. Run loadAndVisualizeBindPose first.');
+    if (!this.isLoaded || !this.modelRoot || !this.skeleton) {
+      Logger.error('HumanoidPhysicsBinderMuJoCo STEP B: Model not loaded.');
       return false;
     }
 
@@ -628,50 +594,31 @@ export class HumanoidPhysicsBinder {
     this.physicsEngine.setReady(false);
 
     try {
-
-      const capsuleHalfHeight = Math.max(0.1, (this.modelHeight / 2) - this.capsuleRadius);
-
       this.capsuleCenterY = this.modelHeight / 2;
 
-      const modelX = this.modelRoot.position.x;
-      const modelZ = this.modelRoot.position.z;
+      // Delegate activation directly to MuJoCoBodyManager!
+      const success = await this.bodyManager.activate(
+        this.boneInfoMap,
+        this.skeleton,
+        null,
+        this.capsuleCenterY,
+        this.modelRoot
+      );
 
-      const rbDesc = RAPIER.RigidBodyDesc.dynamic()
-        .setTranslation(modelX, this.capsuleCenterY, modelZ)
-        .setLinearDamping(0.5)
-        .setAngularDamping(10.0)
-        .setAdditionalMassProperties(
-          70,                               // mass = 70 kg
-          { x: 0, y: 0, z: 0 },            // center of mass
-          { x: 10.0, y: 10.0, z: 10.0 },   // angular inertia (scaled for 70 kg capsule)
-          { x: 0, y: 0, z: 0, w: 1 }
+      if (success) {
+        const world = this.physicsEngine.getWorld();
+        this.motorController.init(
+          this.bodyManager.getActuatorMap(),
+          world.model,
+          world.data
         );
-
-      const world = this.physicsEngine.getWorld();
-      this.capsuleBody = world.createRigidBody(rbDesc);
-
-      const colDesc = RAPIER.ColliderDesc.capsule(capsuleHalfHeight, this.capsuleRadius);
-      colDesc.setDensity(0);
-      colDesc.setFriction(this.friction);
-      colDesc.setRestitution(0.0);
-
-      colDesc.setActiveEvents(RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS);
-
-      const collisionMask = getCollisionMask(RAGDOLL_GROUP, ENVIRONMENT_GROUP);
-      colDesc.setCollisionGroups(collisionMask);
-
-      this.capsuleCollider = world.createCollider(colDesc, this.capsuleBody);
-
-      this.physicsEngine.registerVelocityClampBody(this.capsuleBody);
+      }
 
       this.buildStep = 'B';
       this.physicsEngine.setReady(true);
-
-      Logger.info(`HumanoidPhysicsBinder STEP B Complete: Created single capsule body. halfHeight=${capsuleHalfHeight.toFixed(3)}, radius=${this.capsuleRadius.toFixed(3)}, centerY=${this.capsuleCenterY.toFixed(3)}`);
-      return true;
+      return success;
     } catch (error) {
-      Logger.error('HumanoidPhysicsBinder STEP B: Failed', error);
-      synthiaToast.error('STEP B failed: Rigid body/collider creation error');
+      Logger.error('HumanoidPhysicsBinderMuJoCo STEP B: Failed', error);
       return false;
     } finally {
       this.physicsEngine.setMutating(false);
@@ -679,112 +626,78 @@ export class HumanoidPhysicsBinder {
   }
 
   public async createJointsWithZeroMotors(): Promise<boolean> {
-    if (!this.isLoaded || this.buildStep !== 'B') {
-      Logger.error('HumanoidPhysicsBinder STEP C: Must complete STEP B first');
-      return false;
-    }
-
     this.buildStep = 'C';
-    Logger.info('HumanoidPhysicsBinder STEP C Complete: No joints needed (single capsule mode).');
     return true;
   }
 
-  public async activateMotorsWithStiffnessAndDamping(
-    stiffness: number,
-    damping: number
-  ): Promise<boolean> {
-    if (!this.isLoaded || this.buildStep !== 'C') {
-      Logger.error('HumanoidPhysicsBinder STEP D: Must complete STEP C first');
-      return false;
-    }
-
+  public async activateMotorsWithStiffnessAndDamping(stiffness: number, damping: number): Promise<boolean> {
     this.currentStiffness = stiffness;
     this.currentDamping = damping;
     this.buildStep = 'D';
-
-    Logger.info('HumanoidPhysicsBinder STEP D Complete: Single capsule active, model standing.');
     return true;
   }
 
   public async activateMultiBody(): Promise<boolean> {
-    if (this.buildStep !== 'D' || !this.capsuleBody || !this.modelRoot || !this.skeleton) {
-      Logger.error('HumanoidPhysicsBinder.activateMultiBody: Must reach STEP D first');
-      return false;
-    }
-
-    if (this.mbActive && this.multiBodyManager) {
-      Logger.info('HumanoidPhysicsBinder.activateMultiBody: Already active');
-      return true;
-    }
+    if (this.buildStep !== 'D' || !this.modelRoot || !this.skeleton) return false;
+    if (this.mbActive) return true;
 
     try {
-      this.multiBodyManager = new HumanoidMultiBodyManager(
-        this.physicsEngine,
-        this.scene
-      );
+      const world = this.physicsEngine.getWorld();
+      const module = PhysicsEngine.getModule();
+      if (!module) return false;
 
-      const success = await this.multiBodyManager.activate(
-        this.boneInfoMap,
-        this.skeleton,
-        this.capsuleBody,
-        this.capsuleCenterY,
-        this.modelRoot
-      );
+      const rigidBodiesMap = new Map<string, BodyProxy>();
+      const bodyIds = this.bodyManager.getRigidBodiesMap();
+      const capsuleBodyId = this.bodyManager.getCapsuleBody();
 
-      if (success) {
-        this.mbActive = true;
-
-        this.observationBuilder.clear();
-        const rigidBodiesMap = this.multiBodyManager!.getRigidBodiesMap();
-        const capsuleBody = this.multiBodyManager!.getCapsuleBody();
-
-        if (capsuleBody && capsuleBody.isValid()) {
-          this.observationBuilder.registerJoint('capsule', capsuleBody, null);
-        }
-
-        for (const [boneName, body] of rigidBodiesMap) {
-          this.observationBuilder.registerJoint(
-            boneName,
-            body,
-            capsuleBody && capsuleBody.isValid() ? capsuleBody : null
-          );
-        }
-        this.observationBuilder.setGroundHeight(0);
-
-        Logger.info('HumanoidPhysicsBinder: Multi-body PD control ACTIVATED');
-        synthiaToast.success('Multi-body physics active — PD motor control engaged');
-
-        // Install runtime jitter diagnostic on window.__SYNTHIA_DIAG__
-        // @ts-ignore
-        if (import.meta.env.DEV) {
-          PhysicsDiagnostic.setBonePDGains(BONE_PD_GAINS);
-          installDiagnostic(this.multiBodyManager!);
-        }
-      } else {
-        Logger.error('HumanoidPhysicsBinder.activateMultiBody: Activation failed');
-        this.multiBodyManager = null;
+      for (const [boneName, bodyId] of bodyIds) {
+        if (boneName === 'root_capsule') continue;
+        const proxy = new BodyProxy(bodyId, world.model, world.data, module);
+        rigidBodiesMap.set(boneName, proxy);
       }
 
-      return success;
+      this.observationBuilder.clear();
+      if (capsuleBodyId !== null && capsuleBodyId >= 0) {
+        const capsuleProxy = new BodyProxy(capsuleBodyId, world.model, world.data, module);
+        this.observationBuilder.registerJoint('capsule', capsuleProxy as any, null);
+
+        for (const [boneName, proxy] of rigidBodiesMap) {
+          this.observationBuilder.registerJoint(
+            boneName,
+            proxy as any,
+            capsuleProxy as any
+          );
+        }
+      }
+
+      this.avatarSynchronizer.clear();
+      for (const [boneName] of rigidBodiesMap) {
+        const info = this.boneInfoMap.get(boneName);
+        if (!info) continue;
+        this.avatarSynchronizer.registerBone(boneName, info.bone.name, {
+          canonicalName: boneName, syncRotation: true, syncTranslation: false, rootOffsetY: 0,
+        });
+      }
+
+      this.observationBuilder.setGroundHeight(0);
+      this.mbActive = true;
+      Logger.info('HumanoidPhysicsBinderMuJoCo: Multi-body active');
+      return true;
     } catch (error) {
-      Logger.error('HumanoidPhysicsBinder.activateMultiBody: Exception', error);
-      this.multiBodyManager = null;
+      Logger.error('HumanoidPhysicsBinderMuJoCo: Multi-body activation failed', error);
       return false;
     }
   }
 
   public deactivateMultiBody(): void {
-    if (this.multiBodyManager) {
-      this.multiBodyManager.deactivate();
-      this.multiBodyManager = null;
-    }
     this.observationBuilder.clear();
+    this.avatarSynchronizer.clear();
     this.mbActive = false;
-    Logger.info('HumanoidPhysicsBinder: Multi-body deactivated, reverted to kinematic mode');
+    Logger.info('HumanoidPhysicsBinderMuJoCo: Multi-body deactivated');
   }
 
-  public getMultiBodyManager(): HumanoidMultiBodyManager | null {
-    return this.multiBodyManager;
+  public getMultiBodyManager() {
+    return this.bodyManager;
   }
 
   public getObservationBuilder(): ObservationBuilder {
@@ -792,36 +705,52 @@ export class HumanoidPhysicsBinder {
   }
 
   public syncVisuals(): void {
-    if (!this.isLoaded || !this.capsuleBody || !this.modelRoot) return;
-    if (!this.capsuleBody.isValid()) return;
+    if (!this.isLoaded || !this.modelRoot) return;
 
-    const t = this.capsuleBody.translation();
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
+    const data = world.data;
+    const module = PhysicsEngine.getModule();
+    if (!module) return;
 
-    const rayOrigin = { x: t.x, y: t.y, z: t.z };
-    const rayDir = { x: 0, y: -1, z: 0 };
-    const maxRayDist = 10.0;
-    const rapierRay = new RAPIER.Ray(rayOrigin, rayDir);
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    if (capsuleBodyId === null || capsuleBodyId < 0) return;
 
-    const rayFilter = getCollisionMask(RAGDOLL_GROUP, ENVIRONMENT_GROUP);
-    const hit = this.physicsEngine.getWorld().castRayAndGetNormal(
-      rapierRay, maxRayDist, false,
-      rayFilter,        /* filterGroups — only test ENVIRONMENT_GROUP */
-      undefined,        /* filterExcludeCollider — not needed when using group filter */
-      undefined
-    );
+    // 1. Position and orient the Three.js model root using MuJoCo capsule body
+    const capsuleProxy = new BodyProxy(capsuleBodyId, model, data, module);
+    const t = capsuleProxy.translation();
+    const r = capsuleProxy.rotation();
 
-    if (hit) {
+    this.modelRoot.position.set(t.x, t.y - this.capsuleCenterY, t.z);
+    this.modelRoot.quaternion.set(r.x, r.y, r.z, r.w);
 
-      this.groundSurfaceY = rayOrigin.y + rayDir.y * hit.timeOfImpact;
+    // 2. Perform downward ground raycasting using mj_ray (as verified in Step 1)
+    const capsulePosMj = [
+      data.xpos[capsuleBodyId * 3],
+      data.xpos[capsuleBodyId * 3 + 1],
+      data.xpos[capsuleBodyId * 3 + 2]
+    ];
+    const downDirMj = [0, 0, -1];
+    const geomgroup = [1, 1, 1, 1, 1, 1];
+    const geomIdBuffer = new module.IntBuffer(1);
+
+    // Call mj_ray (exclude capsule geom)
+    const capsuleGeomId = this.bodyManager.getBoneColliderHandle('root_capsule') ?? -1;
+    const dist = module.mj_ray(model, data, capsulePosMj, downDirMj, geomgroup, true, capsuleGeomId, geomIdBuffer, null);
+
+    if (dist >= 0) {
+      // In Three.js world, Y is vertical:
+      this.groundSurfaceY = t.y - dist;
     } else {
-
       this.groundSurfaceY = 0.0;
     }
+    geomIdBuffer.delete();
 
-    if (!this.targetSpawnGrounded && hit) {
+    // Spawn alignment
+    if (!this.targetSpawnGrounded && dist >= 0) {
       let lowestFootY = Infinity;
       for (const [name, info] of this.boneInfoMap) {
-        if (name.includes('foot') || name.includes('toe') || name.includes('toebase')) {
+        if (name.includes('foot') || name.includes('toe')) {
           const worldPos = new THREE.Vector3();
           info.bone.getWorldPosition(worldPos);
           if (worldPos.y < lowestFootY) lowestFootY = worldPos.y;
@@ -829,13 +758,9 @@ export class HumanoidPhysicsBinder {
       }
 
       if (lowestFootY < Infinity) {
-
         const delta = this.groundSurfaceY - lowestFootY;
         if (Math.abs(delta) > 0.001) {
-
-          const newY = t.y + delta;
-          this.capsuleBody.setTranslation({ x: t.x, y: newY, z: t.z }, true);
-          Logger.info(`HumanoidPhysicsBinder: Spawn ground alignment — shifted capsule by ${delta.toFixed(4)}m (lowestFootY=${lowestFootY.toFixed(4)}, groundSurfaceY=${this.groundSurfaceY.toFixed(4)})`);
+          this.setCapsulePosition(t.x, t.y + delta - this.capsuleCenterY, t.z);
         }
       }
       this.targetSpawnGrounded = true;
@@ -844,58 +769,33 @@ export class HumanoidPhysicsBinder {
     const capsuleBottomY = t.y - this.capsuleCenterY;
     this._isGrounded = capsuleBottomY <= (this.groundSurfaceY + this.GROUND_SNAP_THRESHOLD);
 
-    if (this.mbActive && this.multiBodyManager) {
+    // Kinematic ground reaction forces
+    this.applyKinematicGroundReactionForces();
 
-      this.applyKinematicGroundReactionForces();
-
-      this.multiBodyManager.syncVisuals(this.boneInfoMap, this.skeleton!);
-
-      this.modelRoot.updateMatrixWorld(true);
-      return;
-    }
-
-    const feetY = t.y - this.capsuleCenterY;
-    const targetPos = new THREE.Vector3(t.x, feetY, t.z);
-
-    if (!(this as any).lastVisualPos) {
-      (this as any).lastVisualPos = targetPos.clone();
-    }
-
-    if (!this.mbActive) {
-      let lowestYPoint = Infinity;
-
-      this.modelRoot.traverse((child) => {
-        if ((child as THREE.Bone).isBone) {
-          const worldPosition = new THREE.Vector3();
-          child.getWorldPosition(worldPosition);
-
-          if (worldPosition.y < lowestYPoint) {
-            lowestYPoint = worldPosition.y;
-          }
-        }
-      });
-
-      if (lowestYPoint < this.groundSurfaceY) {
-        const penetrationDepth = Math.abs(lowestYPoint - this.groundSurfaceY);
-        const MAX_PENETRATION_CORRECTION = 0.04;
-        const correction = Math.min(penetrationDepth, MAX_PENETRATION_CORRECTION);
-
-        if (correction > 0.001) {
-          this.modelRoot.position.y += correction;
-          this.capsuleBody.setTranslation(
-            { x: t.x, y: t.y + correction, z: t.z },
-            true
-          );
-        } else if (penetrationDepth > 0.08) {
-          Logger.warn(
-            `HumanoidPhysicsBinder: large bone penetration (${penetrationDepth.toFixed(3)}m) — skipping instant correction`
-          );
-        }
+    // 3. Synchronize visual bones with proxies!
+    if (this.mbActive) {
+      const bonesSyncMap = new Map<string, { bone: THREE.Bone; worldPosition: THREE.Vector3 }>();
+      for (const [canonical] of this.bodyManager.getRigidBodiesMap()) {
+        if (canonical === 'root_capsule') continue;
+        const boneInfo = this.boneInfoMap.get(canonical);
+        if (!boneInfo) continue;
+        const worldPos = new THREE.Vector3();
+        boneInfo.bone.getWorldPosition(worldPos);
+        bonesSyncMap.set(canonical, { bone: boneInfo.bone, worldPosition: worldPos });
       }
+
+      const proxiesMap = new Map<string, BodyProxy>();
+      for (const [canonical, bodyId] of this.bodyManager.getRigidBodiesMap()) {
+        if (canonical === 'root_capsule') continue;
+        proxiesMap.set(canonical, new BodyProxy(bodyId, model, data, module));
+      }
+
+      this.avatarSynchronizer.synchronize(bonesSyncMap, proxiesMap as any);
     }
+
+    this.modelRoot.updateMatrixWorld(true);
 
     if (this.debugSpheres.size > 0 && this.skeleton) {
-      this.modelRoot.updateMatrixWorld(true);
       this.boneInfoMap.forEach((boneInfo, boneName) => {
         const debugSphere = this.debugSpheres.get(boneName);
         if (debugSphere) {
@@ -906,194 +806,100 @@ export class HumanoidPhysicsBinder {
       });
     }
 
-    const deltaTime = 1 / 60;
-
-    const aiRecentlyActive = (Date.now() - this.lastAiCommandTime) < 500;
-
-    let bothFeetAirborne = true;
-    let raisedFootCount = 0;
-    let raisedFootDelta = 0;
-
-    for (const name of ['mixamoriglefttoebase', 'mixamorigrighttoebase', 'mixamorigleftfoot', 'mixamorigrightfoot']) {
-      const info = this.boneInfoMap.get(name);
-      if (!info) continue;
-      const worldPos = new THREE.Vector3();
-      info.bone.getWorldPosition(worldPos);
-      const distAboveGround = worldPos.y - this.groundSurfaceY;
-
-      if (distAboveGround <= this.GROUND_SNAP_THRESHOLD) {
-        bothFeetAirborne = false;
+    // Timeline stepper interpolation logic (identical to HumanoidPhysicsBinder.ts)
+    if (this.timelineQueue.length > 0) {
+      if (this.timelineSequenceStart === null) {
+        this.timelineSequenceStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       }
-      if (distAboveGround > this.GROUND_SNAP_THRESHOLD) {
-        raisedFootCount++;
-        raisedFootDelta = Math.max(raisedFootDelta, distAboveGround);
-      }
-    }
 
-    if (bothFeetAirborne && !aiRecentlyActive && !this.mbActive) {
+      const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      const elapsed = now - (this.timelineSequenceStart as number);
+      const sorted = this.timelineQueue.slice().sort((a, b) => a.timeOffsetMs - b.timeOffsetMs);
 
-      this.airborneTimer += deltaTime;
-
-      this.groundingMagnetStrength = 1.0 - Math.exp(-0.5 * this.airborneTimer);
-
-      const distanceToSurface = capsuleBottomY - this.groundSurfaceY;
-      if (distanceToSurface > 0.05 && this.groundingMagnetStrength > 0.01) {
-
-        const magnetVelocity = -2.0 * this.groundingMagnetStrength;
-
-        const currentVel = this.capsuleBody.linvel();
-        if (currentVel.y > magnetVelocity) {
-          this.capsuleBody.setLinvel(
-            { x: currentVel.x, y: magnetVelocity, z: currentVel.z },
-            true
-          );
+      let activeIdx = -1;
+      for (let i = 0; i < sorted.length; i++) {
+        if ((sorted[i].timeOffsetMs || 0) <= elapsed) {
+          activeIdx = i;
+        } else {
+          break;
         }
       }
-    } else {
 
-      this.airborneTimer = 0;
-      this.groundingMagnetStrength = 0.0;
-    }
+      if (activeIdx >= 0) {
+        const activeFrame = sorted[activeIdx];
+        const nextFrame = activeIdx + 1 < sorted.length ? sorted[activeIdx + 1] : null;
 
-    if (raisedFootCount === 1 && raisedFootDelta > 0 && raisedFootDelta < 0.25) {
-      // This is a subtle limb lift — quick proportional spring to settle the foot.
-      // We adjust via motor target relaxation for the raised leg's hip/knee.
-      // The binder's updateMotorTargets() handles the per-frame lerp, so we
-      // can inject a soft target that pulls the joint back toward bind pose.
-      // This is handled naturally by the PD lerp as long as we don't fight it.
-      // For now, rely on gravity and passive damping — only note the condition.
-    }
+        if (nextFrame) {
+          const duration = nextFrame.timeOffsetMs - activeFrame.timeOffsetMs;
+          const t_interp = duration > 0 ? Math.max(0, Math.min(1, (elapsed - activeFrame.timeOffsetMs) / duration)) : 1;
 
-    this.applyKinematicGroundReactionForces();
+          const interpolatedOverrides: Record<string, number | [number, number, number]> = {};
+          const allKeys = new Set([
+            ...Object.keys(activeFrame.overrides || {}),
+            ...Object.keys(nextFrame.overrides || {}),
+          ]);
 
-    this.modelRoot.updateMatrixWorld(true);
+          for (const key of allKeys) {
+            const startVal = activeFrame.overrides?.[key];
+            const endVal = nextFrame.overrides?.[key];
 
-    try {
-      if (this.timelineQueue.length > 0) {
-        if (this.timelineSequenceStart === null) {
-          this.timelineSequenceStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-        }
-
-        const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
-        const elapsed = now - (this.timelineSequenceStart as number);
-
-        const sorted = this.timelineQueue.slice().sort((a, b) => a.timeOffsetMs - b.timeOffsetMs);
-
-        let activeIdx = -1;
-        for (let i = 0; i < sorted.length; i++) {
-          if ((sorted[i].timeOffsetMs || 0) <= elapsed) {
-            activeIdx = i;
-          } else {
-            break;
-          }
-        }
-
-        if (activeIdx >= 0) {
-          const activeFrame = sorted[activeIdx];
-          const nextFrame = activeIdx + 1 < sorted.length ? sorted[activeIdx + 1] : null;
-
-          if (nextFrame) {
-
-            const duration = nextFrame.timeOffsetMs - activeFrame.timeOffsetMs;
-            const t = duration > 0
-              ? Math.max(0, Math.min(1, (elapsed - activeFrame.timeOffsetMs) / duration))
-              : 1;
-
-            const interpolatedOverrides: Record<string, number | [number, number, number]> = {};
-            const allKeys = new Set([
-              ...Object.keys(activeFrame.overrides || {}),
-              ...Object.keys(nextFrame.overrides || {}),
-            ]);
-
-            for (const key of allKeys) {
-              const startVal = activeFrame.overrides?.[key];
-              const endVal = nextFrame.overrides?.[key];
-
-              if (startVal !== undefined && endVal !== undefined) {
-                if (typeof startVal === 'number' && typeof endVal === 'number') {
-                  interpolatedOverrides[key] = startVal + (endVal - startVal) * t;
-                } else if (Array.isArray(startVal) && Array.isArray(endVal) && startVal.length === 3 && endVal.length === 3) {
-                  interpolatedOverrides[key] = [
-                    startVal[0] + (endVal[0] - startVal[0]) * t,
-                    startVal[1] + (endVal[1] - startVal[1]) * t,
-                    startVal[2] + (endVal[2] - startVal[2]) * t,
-                  ];
-                } else {
-                  interpolatedOverrides[key] = endVal;
-                }
-              } else if (endVal !== undefined) {
+            if (startVal !== undefined && endVal !== undefined) {
+              if (typeof startVal === 'number' && typeof endVal === 'number') {
+                interpolatedOverrides[key] = startVal + (endVal - startVal) * t_interp;
+              } else if (Array.isArray(startVal) && Array.isArray(endVal) && startVal.length === 3 && endVal.length === 3) {
+                interpolatedOverrides[key] = [
+                  startVal[0] + (endVal[0] - startVal[0]) * t_interp,
+                  startVal[1] + (endVal[1] - startVal[1]) * t_interp,
+                  startVal[2] + (endVal[2] - startVal[2]) * t_interp,
+                ];
+              } else {
                 interpolatedOverrides[key] = endVal;
-              } else if (startVal !== undefined) {
-                interpolatedOverrides[key] = startVal;
               }
-            }
-
-            this.setMotorTargets(interpolatedOverrides as any);
-          } else {
-
-            this.setMotorTargets(activeFrame.overrides as any);
-          }
-        }
-
-        const GRACE_MS = 50;
-        this.timelineQueue = sorted.filter(f => (f.timeOffsetMs || 0) > elapsed - GRACE_MS);
-        if (this.timelineQueue.length === 0) this.timelineSequenceStart = null;
-      }
-    } catch (err) {
-
-      Logger.warn('HumanoidPhysicsBinder.timelineStepper: unexpected error', err);
-      this.timelineSequenceStart = null;
-      this.timelineQueue = [];
-    }
-
-    {
-      const isCapsuleOnGround = capsuleBottomY <= this.groundSurfaceY + 0.05;
-
-      if (isCapsuleOnGround) {
-        let lowestFootWorldY = Infinity;
-        const footBoneNames = [
-          'mixamoriglefttoebase',
-          'mixamorigrighttoebase',
-          'mixamorigleftfoot',
-          'mixamorigrightfoot',
-        ];
-
-        for (const name of footBoneNames) {
-          const info = this.boneInfoMap.get(name);
-          if (info) {
-            const worldPos = new THREE.Vector3();
-            info.bone.getWorldPosition(worldPos);
-            if (worldPos.y < lowestFootWorldY) {
-              lowestFootWorldY = worldPos.y;
+            } else if (endVal !== undefined) {
+              interpolatedOverrides[key] = endVal;
+            } else if (startVal !== undefined) {
+              interpolatedOverrides[key] = startVal;
             }
           }
-        }
 
-        if (lowestFootWorldY < Infinity && lowestFootWorldY > this.groundSurfaceY) {
-          const floatDelta = lowestFootWorldY - this.groundSurfaceY;
-
-          const clampedDelta = Math.min(floatDelta, 0.02);
-          this.modelRoot.position.y -= clampedDelta;
+          this.setMotorTargets(interpolatedOverrides as any);
+        } else {
+          this.setMotorTargets(activeFrame.overrides as any);
         }
       }
+
+      const GRACE_MS = 50;
+      this.timelineQueue = sorted.filter(f => (f.timeOffsetMs || 0) > elapsed - GRACE_MS);
+      if (this.timelineQueue.length === 0) this.timelineSequenceStart = null;
     }
-    // ───────────────────────────────────────────────────────────────────────
   }
 
   private applyKinematicGroundReactionForces(): void {
-    if (!this.capsuleBody || !this.capsuleBody.isValid() || !this.modelRoot) return;
+    if (!this.modelRoot) return;
 
-    if (this.mbActive && this.multiBodyManager) {
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    if (capsuleBodyId === null || capsuleBodyId < 0) return;
+
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
+    const data = world.data;
+
+    const dofAdr = model.body_dofadr[capsuleBodyId];
+    const qvel = data.qvel;
+
+    if (this.mbActive) {
       const registry = this.physicsEngine.getContactForceRegistry();
       const footBones = ['mixamorigleftfoot', 'mixamorigrightfoot'];
       let totalImpulse = new THREE.Vector3(0, 0, 0);
       let totalTorque = new THREE.Vector3(0, 0, 0);
-      const capsulePos = this.capsuleBody.translation();
+
+      const capsuleProxy = new BodyProxy(capsuleBodyId, model, data, null);
+      const capsulePos = capsuleProxy.translation();
       const modelQuat = this.modelRoot.quaternion.clone();
       const modelForward = new THREE.Vector3(0, 0, -1).applyQuaternion(modelQuat);
 
       for (const boneName of footBones) {
-        const colliderHandle = this.multiBodyManager.getBoneColliderHandle(boneName);
+        const colliderHandle = this.bodyManager.getBoneColliderHandle(boneName);
         if (colliderHandle === null) continue;
 
         const state = registry.get(colliderHandle);
@@ -1130,14 +936,27 @@ export class HumanoidPhysicsBinder {
       }
 
       if (totalImpulse.lengthSq() > 0) {
-        this.capsuleBody.applyImpulse(totalImpulse, true);
+        // qvel velocity impulse for free joint: deltaV = impulse / mass (mass = 70 kg)
+        const mass = 70;
+        const deltaV = totalImpulse.clone().multiplyScalar(1 / mass);
+        const deltaVMj = PhysicsEngine.worldToMuJoCo(deltaV);
+        qvel[dofAdr] += deltaVMj[0];
+        qvel[dofAdr + 1] += deltaVMj[1];
+        qvel[dofAdr + 2] += deltaVMj[2];
       }
       if (Math.abs(totalTorque.y) > 0) {
-        this.capsuleBody.applyTorqueImpulse(totalTorque, true);
+        // angular velocity impulse: deltaW = torque / inertia (inertia = 10.0)
+        const inertia = 10.0;
+        const deltaW = totalTorque.clone().multiplyScalar(1 / inertia);
+        const deltaWMj = PhysicsEngine.worldToMuJoCo(deltaW);
+        qvel[dofAdr + 3] += deltaWMj[0];
+        qvel[dofAdr + 4] += deltaWMj[1];
+        qvel[dofAdr + 5] += deltaWMj[2];
       }
       return;
     }
 
+    // Kinematic model foot positions reaction forces
     const feetNames = ['mixamoriglefttoebase', 'mixamorigrighttoebase'];
     let totalImpulse = new THREE.Vector3(0, 0, 0);
     let totalTorque = new THREE.Vector3(0, 0, 0);
@@ -1169,10 +988,8 @@ export class HumanoidPhysicsBinder {
           if (planarDeltaMag > 0.001) {
             const modelForward = new THREE.Vector3(0, 0, -1).applyQuaternion(modelQuat);
             const forwardMotion = planarDelta.clone().projectOnVector(modelForward);
-            const lateralMotion = planarDelta.clone().sub(forwardMotion);
 
             const forwardMag = forwardMotion.length();
-            const lateralMag = lateralMotion.length();
 
             if (forwardMag > 0.002) {
               const grf = forwardMotion.clone().negate().multiplyScalar(this.KGRF_MULTIPLIER);
@@ -1181,7 +998,8 @@ export class HumanoidPhysicsBinder {
                 grf.setLength(MAX_GRF_IMPULSE);
               }
 
-              const capsulePos = this.capsuleBody!.translation();
+              const capsuleProxy = new BodyProxy(capsuleBodyId, model, data, null);
+              const capsulePos = capsuleProxy.translation();
               const offsetFromCenter = currentPos.x - capsulePos.x;
               const torqueY = -grf.z * offsetFromCenter * 5.0;
               const MAX_TORQUE_Y = 5.0;
@@ -1189,11 +1007,6 @@ export class HumanoidPhysicsBinder {
               grf.y = 0;
               totalImpulse.add(grf);
               totalTorque.y += Math.max(-MAX_TORQUE_Y, Math.min(MAX_TORQUE_Y, torqueY));
-            }
-
-            if (lateralMag > 0.01) {
-              const lateralTorque = lateralMotion.clone().normalize().multiplyScalar(0.5);
-              totalTorque.y += lateralTorque.x * 0.5;
             }
           }
         }
@@ -1203,10 +1016,20 @@ export class HumanoidPhysicsBinder {
     });
 
     if (totalImpulse.lengthSq() > 0) {
-      this.capsuleBody.applyImpulse(totalImpulse, true);
+      const mass = 70;
+      const deltaV = totalImpulse.clone().multiplyScalar(1 / mass);
+      const deltaVMj = PhysicsEngine.worldToMuJoCo(deltaV);
+      qvel[dofAdr] += deltaVMj[0];
+      qvel[dofAdr + 1] += deltaVMj[1];
+      qvel[dofAdr + 2] += deltaVMj[2];
     }
     if (Math.abs(totalTorque.y) > 0) {
-      this.capsuleBody.applyTorqueImpulse(totalTorque, true);
+      const inertia = 10.0;
+      const deltaW = totalTorque.clone().multiplyScalar(1 / inertia);
+      const deltaWMj = PhysicsEngine.worldToMuJoCo(deltaW);
+      qvel[dofAdr + 3] += deltaWMj[0];
+      qvel[dofAdr + 4] += deltaWMj[1];
+      qvel[dofAdr + 5] += deltaWMj[2];
     }
   }
 
@@ -1215,60 +1038,70 @@ export class HumanoidPhysicsBinder {
   }
 
   public executeJump(force: number = 6.0): void {
-
     this.lastAiCommandTime = Date.now();
     this.airborneTimer = 0;
     this.groundingMagnetStrength = 0.0;
 
-    if (!this.capsuleBody || !this.capsuleBody.isValid()) return;
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    if (capsuleBodyId === null || capsuleBodyId < 0) return;
 
-    const angVel = this.capsuleBody.angvel();
-    if (Math.abs(angVel.y) > 2.0) {
-      this.capsuleBody.setAngvel(
-        { x: angVel.x, y: Math.sign(angVel.y) * 2.0, z: angVel.z },
-        true
-      );
-    }
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
+    const data = world.data;
+
+    const dofAdr = model.body_dofadr[capsuleBodyId];
+    const qvel = data.qvel;
 
     if (!this._isGrounded) {
-      Logger.info('HumanoidPhysicsBinder.executeJump: Ignored — not grounded.');
+      Logger.info('HumanoidPhysicsBinderMuJoCo.executeJump: Ignored — not grounded.');
       return;
     }
 
-    this.capsuleBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    this.capsuleBody.applyImpulse({ x: 0, y: force, z: 0 }, true);
+    // Set linear and angular velocities to 0, then add vertical jump impulse to qvel (Z is up in MuJoCo!)
+    for (let i = 0; i < 6; i++) {
+      qvel[dofAdr + i] = 0;
+    }
+    const mass = 70;
+    const deltaV = force / mass;
+    qvel[dofAdr + 2] += deltaV;
     this._isGrounded = false;
-    Logger.info(`HumanoidPhysicsBinder.executeJump: Jump impulse y=${force} applied.`);
+    Logger.info(`HumanoidPhysicsBinderMuJoCo.executeJump: Jump impulse Z=${deltaV} applied.`);
   }
 
   public setBoneRotation(boneName: string, quaternion: THREE.Quaternion): void {
     const boneInfo = this.boneInfoMap.get(boneName.toLowerCase().replace(/:/g, ''));
     if (!boneInfo) return;
-
     boneInfo.bone.quaternion.copy(quaternion);
   }
 
   public setCapsulePosition(x: number, y: number, z: number): void {
-    if (!this.capsuleBody || !this.capsuleBody.isValid()) return;
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    if (capsuleBodyId === null || capsuleBodyId < 0) return;
 
-    const oldPos = this.capsuleBody.translation();
-    const capsuleY = y + this.capsuleCenterY;
-    const dx = x - oldPos.x;
-    const dy = capsuleY - oldPos.y;
-    const dz = z - oldPos.z;
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
+    const data = world.data;
 
-    this.capsuleBody.setTranslation({ x, y: capsuleY, z }, true);
-    this.capsuleBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-    this.capsuleBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    const qpos = data.qpos;
+    const qvel = data.qvel;
 
-    if (this.mbActive && this.multiBodyManager) {
-      const bodiesMap = this.multiBodyManager.getRigidBodiesMap();
-      for (const [, body] of bodiesMap) {
-        if (!body.isValid()) continue;
-        const t = body.translation();
-        body.setTranslation({ x: t.x + dx, y: t.y + dy, z: t.z + dz }, true);
-        body.setLinvel({ x: 0, y: 0, z: 0 }, true);
-        body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    const module = PhysicsEngine.getModule();
+    if (!module) return;
+
+    const rootJntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, 'root_freejoint');
+    if (rootJntId >= 0) {
+      const qposadr = model.jnt_qposadr[rootJntId];
+      const qveladr = model.jnt_dofadr[rootJntId];
+
+      const capsulePosThree = { x, y: y + this.capsuleCenterY, z };
+      const capsulePosMj = PhysicsEngine.worldToMuJoCo(capsulePosThree);
+
+      qpos[qposadr] = capsulePosMj[0];
+      qpos[qposadr + 1] = capsulePosMj[1];
+      qpos[qposadr + 2] = capsulePosMj[2];
+
+      for (let i = 0; i < 6; i++) {
+        qvel[qveladr + i] = 0;
       }
     }
   }
@@ -1276,9 +1109,12 @@ export class HumanoidPhysicsBinder {
   public getJointState(): Record<string, { position: [number, number, number], rotation: [number, number, number, number] }> {
     const state: Record<string, any> = {};
 
-    if (this.capsuleBody && this.capsuleBody.isValid()) {
-      const pos = this.capsuleBody.translation();
-      const rot = this.capsuleBody.rotation();
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    if (capsuleBodyId !== null && capsuleBodyId >= 0) {
+      const world = this.physicsEngine.getWorld();
+      const capsuleProxy = new BodyProxy(capsuleBodyId, world.model, world.data, null);
+      const pos = capsuleProxy.translation();
+      const rot = capsuleProxy.rotation();
 
       state['capsule'] = {
         position: [pos.x, pos.y, pos.z] as [number, number, number],
@@ -1327,7 +1163,6 @@ export class HumanoidPhysicsBinder {
     const up = this.upVector.clone().applyQuaternion(headQuat).normalize();
 
     const EYE_FORWARD_OFFSET = 0.50;
-
     const eyePos = headPos.clone().add(forward.clone().multiplyScalar(EYE_FORWARD_OFFSET));
     const lookTarget = eyePos.clone().add(forward.clone().multiplyScalar(50));
 
@@ -1343,14 +1178,13 @@ export class HumanoidPhysicsBinder {
   public getContactForces(): Record<string, { contact: boolean; impulse_magnitude: number; contact_normal: [number, number, number]; touching: string }> {
     const result: Record<string, { contact: boolean; impulse_magnitude: number; contact_normal: [number, number, number]; touching: string }> = {};
 
-    if (!this.capsuleCollider || !this.capsuleBody || !this.capsuleBody.isValid()) return result;
+    const capsuleGeomId = this.bodyManager.getBoneColliderHandle('root_capsule');
+    if (capsuleGeomId === null) return result;
 
     const registry = this.physicsEngine.getContactForceRegistry();
-    const colliderHandle = this.capsuleCollider.handle;
-    const state = registry.get(colliderHandle);
+    const state = registry.get(capsuleGeomId);
 
     if (state && state.inContact && state.impulse_magnitude > 0.01) {
-
       let touching = 'unknown';
       const ny = state.contact_normal[1];
       if (ny > 0.7) {
@@ -1373,51 +1207,35 @@ export class HumanoidPhysicsBinder {
   }
 
   public push(_partName: string, impulse: THREE.Vector3): void {
-    if (this.capsuleBody && this.capsuleBody.isValid()) {
-      this.capsuleBody.applyImpulse({ x: impulse.x, y: impulse.y, z: impulse.z }, true);
-      Logger.info(`HumanoidPhysicsBinder: Applied impulse: [${impulse.x.toFixed(2)}, ${impulse.y.toFixed(2)}, ${impulse.z.toFixed(2)}]`);
-    }
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    if (capsuleBodyId === null || capsuleBodyId < 0) return;
+
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
+    const data = world.data;
+
+    const dofAdr = model.body_dofadr[capsuleBodyId];
+    const qvel = data.qvel;
+
+    // Apply linear velocity change (deltaV = impulse / mass)
+    const mass = 70;
+    const deltaV = impulse.clone().multiplyScalar(1 / mass);
+    const deltaVMj = PhysicsEngine.worldToMuJoCo(deltaV);
+    qvel[dofAdr] += deltaVMj[0];
+    qvel[dofAdr + 1] += deltaVMj[1];
+    qvel[dofAdr + 2] += deltaVMj[2];
+
+    Logger.info(`HumanoidPhysicsBinderMuJoCo: Applied push velocity change: [${deltaV.x.toFixed(2)}, ${deltaV.y.toFixed(2)}, ${deltaV.z.toFixed(2)}]`);
   }
 
   public setMode(mode: 'rigid' | 'ragdoll'): void {
-    if (!this.capsuleBody || !this.capsuleBody.isValid()) return;
-
-    if (this.mbActive && this.multiBodyManager) {
-      if (mode === 'ragdoll') {
-        this.multiBodyManager.setLimpMode(true);
-
-        this.capsuleBody.lockRotations(false, true);
-        this.capsuleBody.setLinearDamping(0.0);
-        this.capsuleBody.setAngularDamping(0.5);
-        this.capsuleBody.applyImpulse({ x: 0, y: -1.0, z: 0 }, true);
-        this.capsuleBody.applyTorqueImpulse({ x: 1.0, y: 0.5, z: 0.8 }, true);
-        Logger.info('HumanoidPhysicsBinder: RAGDOLL mode — multi-body PD gains zeroed, capsule limp');
-      } else {
-        this.multiBodyManager.setLimpMode(false);
-        this.resetToBindPose();
-        this.capsuleBody.setLinearDamping(2.0);
-        this.capsuleBody.setAngularDamping(10.0);
-        this.capsuleBody.lockRotations(false, true);
-        Logger.info('HumanoidPhysicsBinder: RIGID mode — multi-body PD gains restored');
-      }
-      return;
-    }
-
-    if (mode === 'rigid') {
-      this.capsuleBody.setLinearDamping(2.0);
-      this.capsuleBody.setAngularDamping(8.0);
-      this.capsuleBody.lockRotations(false, true);
-      this.resetToBindPose();
-      Logger.info('HumanoidPhysicsBinder: Switched to RIGID mode — motors active, can topple under imbalance');
+    if (mode === 'ragdoll') {
+      this.motorController.setLimpMode(true);
+      Logger.info('HumanoidPhysicsBinderMuJoCo: Switched to RAGDOLL mode — limp active');
     } else {
-
-      this.capsuleBody.lockRotations(false, true);
-      this.capsuleBody.setLinearDamping(0.0);
-      this.capsuleBody.setAngularDamping(0.5);
-
-      this.capsuleBody.applyImpulse({ x: 0, y: -1.0, z: 0 }, true);
-      this.capsuleBody.applyTorqueImpulse({ x: 1.0, y: 0.5, z: 0.8 }, true);
-      Logger.info('HumanoidPhysicsBinder: Switched to RAGDOLL mode — capsule limp, rotations unlocked');
+      this.motorController.setLimpMode(false);
+      this.resetToBindPose();
+      Logger.info('HumanoidPhysicsBinderMuJoCo: Switched to RIGID mode — position control restored');
     }
   }
 
@@ -1429,37 +1247,27 @@ export class HumanoidPhysicsBinder {
     return {
       stiffness: this.currentStiffness,
       damping: this.currentDamping,
-      gravity: this.gravity,
+      gravity: -9.81,
       friction: this.friction,
     };
   }
 
   public async nextStep(): Promise<boolean> {
-    if (!this.isLoaded) {
-      Logger.error('HumanoidPhysicsBinder: Model not loaded yet');
-      return false;
-    }
+    if (!this.isLoaded) return false;
 
     const currentStep = this.buildStep;
-
     if (currentStep === null || currentStep === 'A') {
-      Logger.info('HumanoidPhysicsBinder: Progressing A → B: Creating capsule body...');
       return this.createRigidBodiesAndColliders();
     } else if (currentStep === 'B') {
-      Logger.info('HumanoidPhysicsBinder: Progressing B → C: (no-op for single capsule)...');
       return this.createJointsWithZeroMotors();
     } else if (currentStep === 'C') {
-      Logger.info('HumanoidPhysicsBinder: Progressing C → D: Finalizing...');
-      return this.activateMotorsWithStiffnessAndDamping(20, 5);
+      return this.activateMotorsWithStiffnessAndDamping(80, 10);
     } else if (currentStep === 'D') {
       if (!this.mbActive) {
-        Logger.info('HumanoidPhysicsBinder: STEP D — Activating multi-body PD control...');
         return this.activateMultiBody();
       }
-      Logger.warn('HumanoidPhysicsBinder: Already at final step D with multi-body active.');
       return true;
     }
-
     return false;
   }
 
@@ -1475,14 +1283,12 @@ export class HumanoidPhysicsBinder {
 
   private resolveJointAlias(name: string): string {
     const JOINT_ALIASES: Record<string, string> = {
-
       'head_yaw': 'mixamorighead',
       'head_pitch': 'mixamorighead',
       'head_roll': 'mixamorighead',
       'neck_yaw': 'mixamorighead',
       'neck_pitch': 'mixamorighead',
       'neck_roll': 'mixamorighead',
-
       'torso_yaw': 'mixamorigspine2',
       'torso_pitch': 'mixamorigspine2',
       'torso_roll': 'mixamorigspine2',
@@ -1495,7 +1301,6 @@ export class HumanoidPhysicsBinder {
       'hips_yaw': 'mixamorigspine',
       'lower_back_yaw': 'mixamorigspine',
       'upper_back_yaw': 'mixamorigspine2',
-
       'right_shoulder_pitch': 'mixamorigrightarm',
       'right_shoulder_roll': 'mixamorigrightarm',
       'right_shoulder_yaw': 'mixamorigrightarm',
@@ -1503,7 +1308,6 @@ export class HumanoidPhysicsBinder {
       'right_elbow': 'mixamorigrightforearm',
       'right_wrist_yaw': 'mixamorigrighthand',
       'right_wrist': 'mixamorigrighthand',
-
       'left_shoulder_pitch': 'mixamorigleftarm',
       'left_shoulder_roll': 'mixamorigleftarm',
       'left_shoulder_yaw': 'mixamorigleftarm',
@@ -1511,7 +1315,6 @@ export class HumanoidPhysicsBinder {
       'left_elbow': 'mixamorigleftforearm',
       'left_wrist_yaw': 'mixamoriglefthand',
       'left_wrist': 'mixamoriglefthand',
-
       'right_hip_pitch': 'mixamorigrightupleg',
       'right_hip_roll': 'mixamorigrightupleg',
       'right_hip_yaw': 'mixamorigrightupleg',
@@ -1520,7 +1323,6 @@ export class HumanoidPhysicsBinder {
       'right_ankle_pitch': 'mixamorigrightfoot',
       'right_ankle_roll': 'mixamorigrightfoot',
       'right_ankle': 'mixamorigrightfoot',
-
       'left_hip_pitch': 'mixamorigleftupleg',
       'left_hip_roll': 'mixamorigleftupleg',
       'left_hip_yaw': 'mixamorigleftupleg',
@@ -1533,19 +1335,15 @@ export class HumanoidPhysicsBinder {
     return JOINT_ALIASES[name] ?? name;
   }
 
-  public setMotorTargets(
-    targets: Record<string, number | number[]>
-  ): ActionApplyResult {
+  public setMotorTargets(targets: Record<string, number | number[]>): ActionApplyResult {
     const applied: string[] = [];
     const rejected: RejectedAction[] = [];
 
     if (this.buildStep !== 'D') {
-      Logger.warn(`setMotorTargets: ignored — buildStep is '${this.buildStep}', expected 'D'. Model may not be fully initialized.`);
       return { applied, rejected };
     }
 
     for (const [boneName, target] of Object.entries(targets)) {
-
       const aliasedName = this.resolveJointAlias(boneName.toLowerCase().replace(/:/g, ''));
       const canonical = aliasedName;
 
@@ -1562,70 +1360,29 @@ export class HumanoidPhysicsBinder {
       try {
         if (Array.isArray(target)) {
           if (target.length === 4) {
-
-            parsedTarget = {
-              x: target[0],
-              y: target[1],
-              z: target[2],
-              w: target[3],
-              isQuaternion: true,
-            };
+            parsedTarget = { x: target[0], y: target[1], z: target[2], w: target[3], isQuaternion: true };
           } else if (target.length === 3) {
-
-            parsedTarget = {
-              x: target[0],
-              y: target[1],
-              z: target[2],
-              isQuaternion: false,
-            };
+            parsedTarget = { x: target[0], y: target[1], z: target[2], isQuaternion: false };
           } else if (target.length === 2) {
-
-            parsedTarget = {
-              x: target[0],
-              y: target[1],
-              z: 0,
-              isQuaternion: false,
-            };
+            parsedTarget = { x: target[0], y: target[1], z: 0, isQuaternion: false };
           } else {
-
-            parsedTarget = {
-              scalar: target[0],
-              isScalar: true,
-            };
+            parsedTarget = { scalar: target[0], isScalar: true };
           }
         } else if (typeof target === 'number') {
-          parsedTarget = {
-            scalar: target,
-            isScalar: true,
-          };
+          parsedTarget = { scalar: target, isScalar: true };
         } else if (typeof target === 'object' && target !== null) {
           if ('angle' in target) {
-            parsedTarget = {
-              scalar: (target as any).angle * (Math.PI / 180),
-              isScalar: true,
-            };
+            parsedTarget = { scalar: (target as any).angle * (Math.PI / 180), isScalar: true };
           } else if ('x' in target || 'y' in target || 'z' in target) {
-            parsedTarget = {
-              x: (target as any).x ?? 0,
-              y: (target as any).y ?? 0,
-              z: (target as any).z ?? 0,
-              isQuaternion: false,
-            };
+            parsedTarget = { x: (target as any).x ?? 0, y: (target as any).y ?? 0, z: (target as any).z ?? 0, isQuaternion: false };
           } else {
-            parsedTarget = {
-              scalar: Number(target),
-              isScalar: true,
-            };
+            parsedTarget = { scalar: Number(target), isScalar: true };
           }
         } else if (typeof target === 'string') {
           const parsedNumber = parseFloat(target);
-          parsedTarget = {
-            scalar: isNaN(parsedNumber) ? 0 : parsedNumber,
-            isScalar: true,
-          };
+          parsedTarget = { scalar: isNaN(parsedNumber) ? 0 : parsedNumber, isScalar: true };
         }
       } catch (err) {
-        Logger.warn(`Failed to parse joint payload for ${boneName}`, err);
         parsedTarget = { scalar: 0, isScalar: true };
       }
 
@@ -1634,7 +1391,6 @@ export class HumanoidPhysicsBinder {
       }
 
       const limits = this.jointLimits.get(canonical) ?? getAnatomicalLimitForBone(canonical);
-
       if (parsedTarget.isScalar && typeof parsedTarget.scalar === 'number') {
         const targetValue = parsedTarget.scalar;
         let finalValue = targetValue;
@@ -1657,278 +1413,111 @@ export class HumanoidPhysicsBinder {
       applied.push(boneName);
     }
 
-    if (rejected.length > 0) {
-      Logger.warn(
-        `setMotorTargets: rejected ${rejected.length} joint(s): ` +
-        rejected.map(r => `${r.joint}(${r.reason})`).join(', ')
-      );
-    }
-
     return { applied, rejected };
   }
 
   public updateMotorTargets(): void {
-    if (this.buildStep !== 'D') {
-      Logger.warn(`updateMotorTargets: ignored — buildStep is '${this.buildStep}', expected 'D'`);
-      return;
+    if (this.buildStep !== 'D') return;
+
+    // Apply native position control
+    this.motorController.setTargets(this.currentTargets);
+
+    // Apply root balance control (getBalance torque directly into xfrc_applied)
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    if (capsuleBodyId !== null && capsuleBodyId >= 0) {
+      this.motorController.applyCapsuleBalance(capsuleBodyId);
     }
-
-    if (this.mbActive && this.multiBodyManager) {
-      this.multiBodyManager.setTargets(this.currentTargets);
-
-      this.currentTargets.forEach((parsedTarget, canonical) => {
-        if (this.isFingerBone(canonical)) {
-          this.applyKinematicLerpForBone(canonical, parsedTarget);
-        }
-      });
-      return;
-    }
-
-    this.currentTargets.forEach((parsedTarget, canonical) => {
-      this.applyKinematicLerpForBone(canonical, parsedTarget);
-    });
-  }
-
-  private isFingerBone(canonical: string): boolean {
-    return /(thumb|index|middle|ring|pinky)\d+$/.test(canonical);
-  }
-
-  private settledBones: Set<string> = new Set();
-  private settledBoneTargets: Map<string, THREE.Quaternion> = new Map();
-  private readonly LERP_SNAP_EPSILON: number = 1e-4;
-
-  private applyKinematicLerpForBone(canonical: string, parsedTarget: any): void {
-    const boneInfo = this.boneInfoMap.get(canonical);
-    const bindPoseQuat = this.bindPoseQuaternions.get(canonical);
-    if (!boneInfo || !bindPoseQuat) return;
-
-    if (this.settledBones.has(canonical)) {
-
-      const cachedTarget = this.settledBoneTargets.get(canonical);
-      if (cachedTarget) {
-
-        const checkTarget = this.computeDesiredTargetQuat(canonical, parsedTarget, bindPoseQuat);
-        const angleDiff = cachedTarget.angleTo(checkTarget);
-        if (angleDiff < this.LERP_SNAP_EPSILON) {
-          return;
-        }
-      }
-
-      this.settledBones.delete(canonical);
-    }
-
-    const limits = this.jointLimits.get(canonical) || getAnatomicalLimitForBone(canonical);
-
-    let targetDeltaQuat = new THREE.Quaternion();
-
-    if (parsedTarget.isQuaternion && parsedTarget.w !== undefined) {
-
-      const absoluteQuat = new THREE.Quaternion(parsedTarget.x, parsedTarget.y, parsedTarget.z, parsedTarget.w).normalize();
-      targetDeltaQuat.copy(bindPoseQuat).invert().multiply(absoluteQuat);
-    } else if (parsedTarget.isScalar) {
-
-      const axisDir = new THREE.Vector3(1, 0, 0);
-      const axis = axisDir.applyQuaternion(boneInfo.bone.quaternion).normalize();
-
-      const currentDeltaQuat = bindPoseQuat.clone().invert().multiply(boneInfo.bone.quaternion);
-      const currentAngle = this.extractAngleFromQuat(currentDeltaQuat, axis);
-
-      let targetAngle = parsedTarget.scalar || 0;
-      if (limits) targetAngle = Math.max(limits.min, Math.min(limits.max, targetAngle));
-
-      const EPSILON = 0.002;
-      if (Math.abs(targetAngle - currentAngle) < EPSILON) {
-        targetDeltaQuat.setFromAxisAngle(axis, targetAngle);
-
-        this.settledBones.add(canonical);
-        this.settledBoneTargets.set(canonical, targetDeltaQuat.clone());
-      } else {
-        let newAngle = currentAngle + (targetAngle - currentAngle) * this.lerpSpeed;
-        if (limits) newAngle = Math.max(limits.min, Math.min(limits.max, newAngle));
-        targetDeltaQuat.setFromAxisAngle(axis, newAngle);
-      }
-    } else {
-
-      let eulerX = parsedTarget.x || 0;
-      let eulerY = parsedTarget.y || 0;
-      let eulerZ = parsedTarget.z || 0;
-
-      if (limits) {
-        eulerX = Math.max(limits.min, Math.min(limits.max, eulerX));
-      }
-
-      const eulerOrder: THREE.EulerOrder = 'XYZ';
-      const targetEuler = new THREE.Euler(eulerX, eulerY, eulerZ, eulerOrder);
-      const desiredDeltaQuat = new THREE.Quaternion().setFromEuler(targetEuler);
-
-      const currentDeltaQuat = bindPoseQuat.clone().invert().multiply(boneInfo.bone.quaternion);
-
-      const EPSILON = 0.002;
-      if (currentDeltaQuat.angleTo(desiredDeltaQuat) < EPSILON) {
-        targetDeltaQuat.copy(desiredDeltaQuat);
-
-        this.settledBones.add(canonical);
-        this.settledBoneTargets.set(canonical, desiredDeltaQuat.clone());
-      } else {
-        targetDeltaQuat.copy(currentDeltaQuat).slerp(desiredDeltaQuat, this.lerpSpeed);
-      }
-    }
-
-    const finalQuat = bindPoseQuat.clone().multiply(targetDeltaQuat);
-    boneInfo.bone.quaternion.copy(finalQuat);
-  }
-
-  private computeDesiredTargetQuat(canonical: string, parsedTarget: any, _bindPoseQuat: THREE.Quaternion): THREE.Quaternion {
-    const limits = this.jointLimits.get(canonical) || getAnatomicalLimitForBone(canonical);
-
-    if (parsedTarget.isQuaternion && parsedTarget.w !== undefined) {
-
-      const absoluteQuat = new THREE.Quaternion(parsedTarget.x, parsedTarget.y, parsedTarget.z, parsedTarget.w).normalize();
-      return _bindPoseQuat.clone().invert().multiply(absoluteQuat);
-    }
-
-    if (parsedTarget.isScalar) {
-      const boneInfo = this.boneInfoMap.get(canonical);
-      if (!boneInfo) return new THREE.Quaternion();
-
-      const axisDir = new THREE.Vector3(1, 0, 0);
-      const axis = axisDir.applyQuaternion(boneInfo.bone.quaternion).normalize();
-      let targetAngle = parsedTarget.scalar || 0;
-      if (limits) targetAngle = Math.max(limits.min, Math.min(limits.max, targetAngle));
-      return new THREE.Quaternion().setFromAxisAngle(axis, targetAngle);
-    }
-
-    let eulerX = parsedTarget.x || 0;
-    let eulerY = parsedTarget.y || 0;
-    let eulerZ = parsedTarget.z || 0;
-    if (limits) eulerX = Math.max(limits.min, Math.min(limits.max, eulerX));
-
-    return new THREE.Quaternion().setFromEuler(new THREE.Euler(eulerX, eulerY, eulerZ, 'XYZ'));
-  }
-
-  private extractAngleFromQuat(quat: THREE.Quaternion, axis: THREE.Vector3): number {
-
-    const sinHalfAngle = axis.x * quat.x + axis.y * quat.y + axis.z * quat.z;
-    return 2 * Math.asin(Math.max(-1, Math.min(1, sinHalfAngle)));
   }
 
   public setLerpSpeed(speed: number): void {
-    this.lerpSpeed = Math.max(0.01, Math.min(1.0, speed));
+    this._lerpSpeed = Math.max(0.01, Math.min(1.0, speed));
+    void this._lerpSpeed;
   }
 
   public executeProgramSequence(programs: string[]): void {
-
     this.lastAiCommandTime = Date.now();
     this.airborneTimer = 0;
     this.groundingMagnetStrength = 0.0;
 
-    if (this.buildStep !== 'D' || !this.capsuleBody || !this.capsuleBody.isValid()) return;
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    if (capsuleBodyId === null || capsuleBodyId < 0) return;
 
     for (const program of programs) {
       const name = program.toLowerCase().replace(/[_\s]/g, '');
 
       if (name.includes('stand') || name.includes('upright') || name.includes('recover') || name.includes('reorient')) {
-
-        this.capsuleBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-        this.capsuleBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-
-        const currentPos = this.capsuleBody.translation();
-        const safeStandingY = this.capsuleCenterY + 0.05;
-        this.capsuleBody.setTranslation({ x: currentPos.x, y: safeStandingY, z: currentPos.z }, true);
-
+        this.setCapsulePosition(0, 0.05, 0);
         this.resetToBindPose();
       } else if (name.includes('jump')) {
         this.executeJump(6.0);
-      } else if (name.includes('crouch') || name.includes('squat')) {
-        this.capsuleBody.setLinvel({ x: 0, y: -0.5, z: 0 }, true);
-      } else if (name.includes('fall') || name.includes('collapse')) {
-
-        this.capsuleBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      } else {
-
-        Logger.warn(`HumanoidPhysicsBinder.executeProgramSequence: Unknown program "${program}" ignored. AI must use joint_overrides for locomotion via K-GRF foot strokes.`);
       }
     }
   }
 
   public resetPose(spawnPoint: { x: number; y: number; z: number }): void {
-    Logger.info(`HumanoidPhysicsBinder.resetPose: resetting to (${spawnPoint.x}, ${spawnPoint.y}, ${spawnPoint.z})`);
-
-    if (this.capsuleBody && this.capsuleBody.isValid()) {
-      this.capsuleBody.setTranslation(
-        { x: spawnPoint.x, y: spawnPoint.y + this.capsuleCenterY, z: spawnPoint.z },
-        true
-      );
-      this.capsuleBody.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
-      this.capsuleBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-      this.capsuleBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-      this.capsuleBody.lockRotations(false, true);
-    }
-
+    this.setCapsulePosition(spawnPoint.x, spawnPoint.y, spawnPoint.z);
     this.resetToBindPose();
-
-    this.modelRoot?.updateMatrixWorld(true);
     this.previousFootPositions.clear();
   }
 
   public isOutOfWorldBounds(): boolean {
-    if (!this.capsuleBody || !this.capsuleBody.isValid()) return false;
-    const t = this.capsuleBody.translation();
-    const dist = Math.sqrt(t.x * t.x + t.z * t.z);
-    return dist > WORLD_BOUNDARY_RADIUS || Math.abs(t.y) > WORLD_BOUNDARY_RADIUS;
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    if (capsuleBodyId === null || capsuleBodyId < 0) return false;
+
+    const world = this.physicsEngine.getWorld();
+    const posMj = [
+      world.data.xpos[capsuleBodyId * 3],
+      world.data.xpos[capsuleBodyId * 3 + 1],
+      world.data.xpos[capsuleBodyId * 3 + 2]
+    ];
+    const pos = PhysicsEngine.mujocoToWorld(posMj as any);
+    const dist = Math.sqrt(pos.x * pos.x + pos.z * pos.z);
+    return dist > WORLD_BOUNDARY_RADIUS || Math.abs(pos.y) > WORLD_BOUNDARY_RADIUS;
   }
 
   public resetToBindPose(): void {
     this.currentTargets.clear();
 
-    this.settledBones.clear();
-    this.settledBoneTargets.clear();
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
+    const data = world.data;
+    const qpos = data.qpos;
+    const qvel = data.qvel;
+    const module = PhysicsEngine.getModule();
+    if (!module) return;
 
-    this.boneInfoMap.forEach((info, canonical) => {
-      const bindQuat = this.bindPoseQuaternions.get(canonical);
-      if (bindQuat) {
-        info.bone.quaternion.copy(bindQuat);
-      } else {
-        info.bone.quaternion.identity();
+    // Reset all hinge qpos values to 0 (which maps perfectly to bind pose in our template!)
+    const joints = this.bodyManager.getRigidBodiesMap();
+    for (const [boneName] of joints) {
+      const hasYaw = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_yaw') >= 0;
+      const hasPitch = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_pitch') >= 0;
+      const hasRoll = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_roll') >= 0;
+
+      if (hasYaw) {
+        const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_yaw');
+        qpos[model.jnt_qposadr[jntId]] = 0;
+        qvel[model.jnt_dofadr[jntId]] = 0;
       }
-    });
+      if (hasPitch) {
+        const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_pitch');
+        qpos[model.jnt_qposadr[jntId]] = 0;
+        qvel[model.jnt_dofadr[jntId]] = 0;
+      }
+      if (hasRoll) {
+        const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_roll');
+        qpos[model.jnt_qposadr[jntId]] = 0;
+        qvel[model.jnt_dofadr[jntId]] = 0;
+      }
+    }
 
     const armsDownAngle = this.restArmAngleDeg * (Math.PI / 180);
-
-    const applyArmRotation = (canonical: string, angle: number) => {
-      const boneInfo = this.boneInfoMap.get(canonical);
-      const bindPoseQuat = this.bindPoseQuaternions.get(canonical);
-      if (!boneInfo || !bindPoseQuat) return;
-
-      const targetEuler = new THREE.Euler(angle, 0, 0, 'XYZ');
-      const targetDeltaQuat = new THREE.Quaternion().setFromEuler(targetEuler);
-      boneInfo.bone.quaternion.copy(bindPoseQuat.clone().multiply(targetDeltaQuat));
-
-      this.currentTargets.set(canonical, { x: angle, y: 0, z: 0, isQuaternion: false });
-    };
-
-    applyArmRotation('mixamorigrightarm', armsDownAngle);
-    applyArmRotation('mixamorigleftarm', armsDownAngle);
-
-    if (this.mbActive && this.multiBodyManager) {
-      this.multiBodyManager.syncRigidBodiesFromBones(this.boneInfoMap);
-    }
+    this.currentTargets.set('mixamorigrightarm', { x: armsDownAngle, y: 0, z: 0, isQuaternion: false });
+    this.currentTargets.set('mixamorigleftarm', { x: armsDownAngle, y: 0, z: 0, isQuaternion: false });
   }
 
   public async adjustMotors(stiffness: number, damping: number): Promise<boolean> {
-    if (this.buildStep !== 'D') {
-      Logger.error('HumanoidPhysicsBinder: Must reach STEP D first. Use nextStep() to progress.');
-      return false;
-    }
-
     this.currentStiffness = stiffness;
     this.currentDamping = damping;
-
-    if (this.capsuleBody && this.capsuleBody.isValid()) {
-      this.capsuleBody.setLinearDamping(damping * 0.2);
-    }
-
-    Logger.info(`HumanoidPhysicsBinder: Adjusted capsule damping. stiffness=${stiffness}, damping=${damping}`);
     return true;
   }
 
@@ -1936,52 +1525,60 @@ export class HumanoidPhysicsBinder {
     return this.modelRoot;
   }
 
-  public getCapsuleBody(): RAPIER.RigidBody | null {
-    return this.capsuleBody;
+  public getCapsuleBody(): any {
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    if (capsuleBodyId === null || capsuleBodyId < 0) return null;
+    const world = this.physicsEngine.getWorld();
+    return new BodyProxy(capsuleBodyId, world.model, world.data, PhysicsEngine.getModule());
   }
 
   public getDiagnostics(): Record<string, any> {
-    const capsulePos = this.capsuleBody?.isValid() ? this.capsuleBody.translation() : null;
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    let capsulePos = null;
+    if (capsuleBodyId !== null && capsuleBodyId >= 0) {
+      const world = this.physicsEngine.getWorld();
+      const proxy = new BodyProxy(capsuleBodyId, world.model, world.data, null);
+      const t = proxy.translation();
+      capsulePos = [t.x.toFixed(3), t.y.toFixed(3), t.z.toFixed(3)];
+    }
+
     return {
       buildStep: this.buildStep,
       isLoaded: this.isLoaded,
       boneCount: this.boneInfoMap.size,
-      hasCapsuleBody: !!this.capsuleBody,
-      capsulePosition: capsulePos ? [capsulePos.x.toFixed(3), capsulePos.y.toFixed(3), capsulePos.z.toFixed(3)] : null,
+      hasCapsuleBody: capsuleBodyId !== null,
+      capsulePosition: capsulePos,
       modelHeight: this.modelHeight,
       capsuleRadius: this.capsuleRadius,
       capsuleCenterY: this.capsuleCenterY,
       hipToFootDistance: this.hipToFootDistance,
       currentStiffness: this.currentStiffness,
       currentDamping: this.currentDamping,
-      gravity: this.gravity,
+      gravity: -9.81,
       friction: this.friction,
       mbActive: this.mbActive,
-      multiBodyBoneCount: this.multiBodyManager?.getBoneCount() ?? 0,
-      multiBodyMotorJoints: this.multiBodyManager?.getMotorController().getJointCount() ?? 0,
+      multiBodyBoneCount: this.bodyManager.getRigidBodiesMap().size,
+      multiBodyMotorJoints: this.motorController.getJointCount(),
     };
   }
 
   public cleanup(): void {
-
-    if (this.multiBodyManager) {
-      this.multiBodyManager.deactivate();
-      this.multiBodyManager = null;
-      this.mbActive = false;
-    }
+    this.bodyManager.deactivate();
+    this.observationBuilder.clear();
+    this.avatarSynchronizer.clear();
 
     if (this.modelRoot) {
       this.scene.remove(this.modelRoot);
       this.modelRoot.traverse((child) => {
         if ((child as any).isMesh) {
           const mesh = child as THREE.Mesh;
-          if (mesh.geometry) {
-            mesh.geometry.dispose();
-          }
-          if (Array.isArray(mesh.material)) {
-            (mesh.material as THREE.Material[]).forEach(m => m.dispose());
-          } else if (mesh.material) {
-            (mesh.material as THREE.Material).dispose();
+          if (mesh.geometry) mesh.geometry.dispose();
+          if (mesh.material) {
+            if (Array.isArray(mesh.material)) {
+              mesh.material.forEach(m => m.dispose());
+            } else {
+              mesh.material.dispose();
+            }
           }
         }
       });
@@ -1990,43 +1587,17 @@ export class HumanoidPhysicsBinder {
 
     this.debugSpheres.forEach((sphere) => {
       this.scene.remove(sphere);
-      if (sphere.geometry) {
-        sphere.geometry.dispose();
-      }
-      if (sphere.material) {
-        (sphere.material as THREE.Material).dispose();
-      }
+      if (sphere.geometry) sphere.geometry.dispose();
+      if (sphere.material) (sphere.material as THREE.Material).dispose();
     });
     this.debugSpheres.clear();
-
-    if (this.capsuleBody) {
-      try {
-        if (this.capsuleBody.isValid()) {
-          this.physicsEngine.unregisterVelocityClampBody(this.capsuleBody);
-          const world = this.physicsEngine.getWorld();
-          world.removeRigidBody(this.capsuleBody);
-        }
-      } catch (e) {
-        Logger.warn('HumanoidPhysicsBinder: Error removing capsule body during cleanup', e);
-      }
-      this.capsuleBody = null;
-    }
-
-    if (this.aiCameraHelper) {
-      this.scene.remove(this.aiCameraHelper);
-      this.aiCameraHelper = null;
-    }
-    this.cameraHelpers.forEach(h => this.scene.remove(h));
-    this.cameraHelpers = [];
 
     this.boneInfoMap.clear();
     this.bindPoseQuaternions.clear();
     this.skeleton = null;
     this.skinnedMesh = null;
-
     this.isLoaded = false;
     this.buildStep = null;
-    this.currentStiffness = 0;
-    this.currentDamping = 0;
+    this.mbActive = false;
   }
 }
