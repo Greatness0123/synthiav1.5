@@ -1477,6 +1477,7 @@ export class HumanoidPhysicsBinder {
 
   public resetToBindPose(): void {
     this.currentTargets.clear();
+    this.motorController.resetRamp();
 
     const world = this.physicsEngine.getWorld();
     const model = world.model;

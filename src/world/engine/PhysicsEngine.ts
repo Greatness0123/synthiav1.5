@@ -31,9 +31,11 @@ export class PhysicsEngine {
   public isStepping = false;
   private isMutatingWorld = false;
   private isPhysicsBroken = false;
+  private lastLoadedXml = '';
 
   private contactForceRegistry: Map<number, ColliderContactState> = new Map();
   private velocityClampBodies: Set<number> = new Set();
+  private stepCount = 0;
 
   private cachedQPos: Float64Array | null = null;
   private cachedQVel: Float64Array | null = null;
@@ -137,6 +139,10 @@ export class PhysicsEngine {
     return this.data;
   }
 
+  public getLastLoadedXml(): string {
+    return this.lastLoadedXml;
+  }
+
   public loadMJCFModel(xmlString: string): void {
     const module = PhysicsEngine.mujocoModule;
     if (!module) {
@@ -154,6 +160,7 @@ export class PhysicsEngine {
       }
 
       module.FS.writeFile('/model.xml', xmlString);
+      this.lastLoadedXml = xmlString;
 
       this.model = module.MjModel.mj_loadXML('/model.xml');
       if (!this.model) {
@@ -225,7 +232,15 @@ export class PhysicsEngine {
     }
 
     try {
+      const isDebug = typeof window !== 'undefined' && ((window as any).__SYNTHIA_DEBUG__ || (window as any).location?.hostname === 'localhost');
+      if (this.stepCount === 0 && isDebug) {
+        console.log(`[DEBUG QPOS FRAME 0] (length ${this.data.qpos.length}) first 25 elements:`, Array.from(this.data.qpos.subarray(0, 25)).map(n => Number(n.toFixed(4))));
+      }
       module.mj_step(this.model, this.data);
+      this.stepCount++;
+      if ((this.stepCount === 1 || this.stepCount === 2 || this.stepCount === 5 || this.stepCount === 10) && isDebug) {
+        console.log(`[DEBUG QPOS FRAME ${this.stepCount}] first 25 elements:`, Array.from(this.data.qpos.subarray(0, 25)).map(n => Number(n.toFixed(4))));
+      }
 
       this.clampRegisteredBodyVelocities();
 

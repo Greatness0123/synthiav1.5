@@ -159,11 +159,6 @@ export class ObjectManager {
         }
       });
 
-      // 2. Append new mesh to our custom specs
-      if (newMeshSpec) {
-        this.customMeshesSpec.push(newMeshSpec);
-      }
-
       // 3. Rebuild the XML MJCF model
       // Retrieve humanoid visual bones model structure
       const skeletonBinder = (window as any).__SYNTHIA_HUMANOID_BINDER__;
@@ -171,13 +166,28 @@ export class ObjectManager {
         throw new Error('Hydration error: Humanoid binder reference is missing.');
       }
 
-      // Generate base MJCF XML string
-      const baseXml = skeletonBinder.getMultiBodyManager().isActive
-        ? (window as any).__SYNTHIA_PHYSICS_ENGINE__.getWorld().model // load last loaded string
-        : skeletonBinder.getMultiBodyManager().generateBaseMJCF();
+      const mbm = skeletonBinder.getMultiBodyManager();
+
+      // Generate base MJCF XML string from pristine or current accumulated base XML
+      const baseXml = newMeshSpec
+        ? (mbm.getCurrentBaseMjcfXml() || mbm.getPristineBaseMjcfXml())
+        : mbm.getPristineBaseMjcfXml();
+
+      if (!baseXml) {
+        throw new Error('Hydration error: Pristine or current base MJCF is empty or uninitialized');
+      }
+
+      // If we have a new custom mesh, only append the new mesh to the current accumulated XML.
+      // If we are reloading/deleting, append all remaining specs onto the pristine base.
+      const specsToAppend = newMeshSpec ? [newMeshSpec] : this.customMeshesSpec;
+
+      // Append the new custom mesh spec to specs cache
+      if (newMeshSpec) {
+        this.customMeshesSpec.push(newMeshSpec);
+      }
 
       // Parse and construct the combined custom model XML tags
-      const customModelsXml = this.customMeshesSpec.map((spec) => {
+      const customModelsXml = specsToAppend.map((spec) => {
         const posMj = PhysicsEngine.worldToMuJoCo(spec.position);
         const quatMj = spec.quaternion
           ? PhysicsEngine.threeQuatToMuJoCo(spec.quaternion)
@@ -202,13 +212,7 @@ export class ObjectManager {
       }).join('\n');
 
       // Inject custom body models inside the worldbody before reload
-      let combinedXml = (window as any)._last_mjcf_loaded || baseXml;
-      if (typeof combinedXml !== 'string') {
-        // Fallback to generating raw XML template
-        combinedXml = skeletonBinder.getMultiBodyManager().isActive
-          ? skeletonBinder.getMultiBodyManager().deactivate() || ''
-          : '';
-      }
+      let combinedXml = baseXml;
 
       // Injecting before </worldbody>
       const worldbodyEndIdx = combinedXml.lastIndexOf('</worldbody>');
@@ -218,6 +222,7 @@ export class ObjectManager {
 
       // 4. Load compiled XML into the physics engine
       this.physicsEngine.loadMJCFModel(combinedXml);
+      skeletonBinder.getMultiBodyManager().setCurrentBaseMjcfXml(combinedXml);
       this.physicsEngine.setReady(true);
 
       const newWorld = this.physicsEngine.getWorld();
