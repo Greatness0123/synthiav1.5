@@ -14,7 +14,22 @@ export class BodyManager {
   private actuatorMap: Map<string, number[]> = new Map(); // boneName -> actuatorIds
   private capsuleBodyId: number | null = null;
 
+  private pristineBaseMjcfXml: string = '';
+  private currentBaseMjcfXml: string = '';
+
   public isActive: boolean = false;
+
+  public getPristineBaseMjcfXml(): string {
+    return this.pristineBaseMjcfXml;
+  }
+
+  public getCurrentBaseMjcfXml(): string {
+    return this.currentBaseMjcfXml;
+  }
+
+  public setCurrentBaseMjcfXml(xml: string): void {
+    this.currentBaseMjcfXml = xml;
+  }
 
   constructor(physicsEngine: PhysicsEngine) {
     this.physicsEngine = physicsEngine;
@@ -40,6 +55,8 @@ export class BodyManager {
 
       // 1. Generate full humanoid MJCF string
       const mjcfXml = generateHumanoidMJCF(boneInfoMap, _skeleton, capsuleCenterY, modelRoot);
+      this.pristineBaseMjcfXml = mjcfXml;
+      this.currentBaseMjcfXml = mjcfXml;
 
       // 2. Load into MuJoCo physics engine
       this.physicsEngine.loadMJCFModel(mjcfXml);
@@ -80,6 +97,16 @@ export class BodyManager {
         const geomId = module.mj_name2id(model, module.mjtObj.mjOBJ_GEOM.value, boneName + '_geom');
         if (geomId >= 0) {
           this.geomMap.set(boneName, geomId);
+        }
+
+        const suffixes = ['_yaw', '_pitch', '_roll'];
+        for (const suffix of suffixes) {
+          const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + suffix);
+          if (jntId >= 0) {
+            if (typeof window !== 'undefined' && ((window as any).__SYNTHIA_DEBUG__ || (window as any).location?.hostname === 'localhost')) {
+              console.log(`[JOINT MAP] ${boneName}${suffix} -> qposadr=${model.jnt_qposadr[jntId]}`);
+            }
+          }
         }
       }
 

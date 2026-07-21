@@ -11,6 +11,7 @@ export class MotorController {
   private globalStiffnessScale = 1.0;
   private globalDampingScale = 1.0;
   private limpModeActive = false;
+  private simulationStepCount = 0;
 
   constructor() {}
 
@@ -30,8 +31,13 @@ export class MotorController {
     this.globalStiffnessScale = 1.0;
     this.globalDampingScale = 1.0;
     this.limpModeActive = false;
+    this.simulationStepCount = 0;
 
     Logger.info(`MotorController: Initialized with ${model.nu} actuators.`);
+  }
+
+  public resetRamp(): void {
+    this.simulationStepCount = 0;
   }
 
   public setTargets(currentTargets: Map<string, any>): void {
@@ -46,6 +52,9 @@ export class MotorController {
 
     if (this.limpModeActive) return;
 
+    const rampFactor = Math.min(1.0, this.simulationStepCount / 20);
+    this.simulationStepCount++;
+
     currentTargets.forEach((parsedTarget, boneName) => {
       const actuatorIds = this.actuatorMap.get(boneName);
       if (!actuatorIds || actuatorIds.length === 0) return;
@@ -58,7 +67,7 @@ export class MotorController {
         } else if (parsedTarget.x !== undefined && typeof parsedTarget.x === 'number') {
           targetAngle = parsedTarget.x;
         }
-        ctrl[actuatorIds[0]] = targetAngle;
+        ctrl[actuatorIds[0]] = targetAngle * rampFactor;
       } else if (actuatorIds.length === 3) {
         // Spherical joint decomposed into yaw, pitch, roll
         // Index 0: yaw, Index 1: pitch, Index 2: roll
@@ -74,9 +83,9 @@ export class MotorController {
           roll = parsedTarget.y || 0;
         }
 
-        ctrl[actuatorIds[0]] = yaw;
-        ctrl[actuatorIds[1]] = pitch;
-        ctrl[actuatorIds[2]] = roll;
+        ctrl[actuatorIds[0]] = yaw * rampFactor;
+        ctrl[actuatorIds[1]] = pitch * rampFactor;
+        ctrl[actuatorIds[2]] = roll * rampFactor;
       }
     });
   }
@@ -86,8 +95,9 @@ export class MotorController {
     const actuatorIds = this.actuatorMap.get(boneName);
     if (!actuatorIds || actuatorIds.length === 0) return;
 
+    const rampFactor = Math.min(1.0, this.simulationStepCount / 20);
     // Direct assignment to pitch or first actuator
-    this.data.ctrl[actuatorIds[0]] = angle;
+    this.data.ctrl[actuatorIds[0]] = angle * rampFactor;
   }
 
   public setGainScale(stiffnessScale: number, dampingScale: number): void {

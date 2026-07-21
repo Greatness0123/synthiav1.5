@@ -346,7 +346,7 @@ ${pianoGeoms.join('\n')}
   const xml = `
 <mujoco model="synthia_humanoid">
   <compiler angle="radian" coordinate="local"/>
-  <option gravity="0 0 -9.81" timestep="0.01667" iterations="100"/>
+  <option gravity="0 0 -9.81" timestep="0.01667" iterations="100" integrator="implicitfast"/>
   <worldbody>
     <light directional="true" pos="0 0 5" dir="0 0 -1"/>
     <geom name="floor" type="plane" size="100 100 0.1" rgba="0.8 0.9 0.8 1" contype="1" conaffinity="2"/>
