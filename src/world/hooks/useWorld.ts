@@ -8,6 +8,7 @@ import { PhysicsEngine } from "../engine/PhysicsEngine";
 import { MuJoCoPhysicsEngine } from "../engine/MuJoCoPhysicsEngine";
 import { AudioEngine } from "../engine/AudioEngine";
 import { ObjectManager } from "../engine/ObjectManager";
+import { MuJoCoObjectManager } from "../engine/MuJoCoObjectManager";
 import { RagdollBuilder } from "../engine/RagdollBuilder";
 import { HumanoidPhysicsBinder } from "../engine/HumanoidPhysicsBinder";
 import { HumanoidPhysicsBinderMuJoCo } from "../engine/HumanoidPhysicsBinderMuJoCo";
@@ -34,6 +35,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   const mujocoEngineRef = useRef<MuJoCoPhysicsEngine | null>(null);
   const audioEngineRef = useRef<AudioEngine | null>(null);
   const objectManagerRef = useRef<ObjectManager | null>(null);
+  const mujocoObjectManagerRef = useRef<MuJoCoObjectManager | null>(null);
   const ragdollBuilderRef = useRef<RagdollBuilder | null>(null);
   const humanoidPhysicsBinderRef = useRef<HumanoidPhysicsBinder | null>(null);
   const proceduralBuilderRef = useRef<ProceduralHumanoidBuilder | null>(null);
@@ -91,18 +93,29 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
         );
         worldEngineRef.current = worldEngine;
 
-        const objectManager = new ObjectManager(
-          physicsEngine.getWorld(),
-          worldEngine.getScene(),
-          audioEngine,
-        );
-        objectManagerRef.current = objectManager;
+        let objectManager: any;
+        if (useMuJoCo) {
+          objectManager = new MuJoCoObjectManager(
+            physicsEngine,
+            worldEngine.getScene(),
+            audioEngine
+          );
+          mujocoObjectManagerRef.current = objectManager;
+        } else {
+          objectManager = new ObjectManager(
+            physicsEngine.getWorld(),
+            worldEngine.getScene(),
+            audioEngine,
+          );
+          objectManagerRef.current = objectManager;
+        }
+
         if (cancelled) {
           physicsEngine.cleanup();
           return;
         }
 
-        objectManager.setEventCallback((type, data) => {
+        objectManager.setEventCallback((type: string, data: any) => {
           if (type === "piano_note") {
             pendingOutcomesRef.current.push({
               type: "outcome",
@@ -126,25 +139,31 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
         const cam = worldEngine.getCameraManager();
         cam.onDragChanged = (dragging, object) => {
+          const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+          if (!activeObjManager) return;
+
           if (!object) {
-            objectManager.setDraggingObject(null);
+            activeObjManager.setDraggingObject(null);
             return;
           }
           let target: THREE.Object3D | null = object;
           while (target && !target.userData.objectId && target.parent) {
             target = target.parent;
           }
-          objectManager.setDraggingObject(
+          activeObjManager.setDraggingObject(
             dragging && target?.userData.objectId ? target.userData.objectId : null
           );
         };
         cam.onDragEnd = (object) => {
+          const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+          if (!activeObjManager) return;
+
           let target: THREE.Object3D | null = object;
           while (target && !target.userData.objectId && target.parent) {
             target = target.parent;
           }
           if (target?.userData.objectId) {
-            objectManager.setObjectPosition(
+            activeObjManager.setObjectPosition(
               target.userData.objectId,
               target.position,
               target.quaternion
@@ -224,13 +243,23 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
             return;
           }
 
-          const eq = physics.getEventQueue();
-          if (eq) {
+          const useMuJoCo = useWorldStore.getState().useMuJoCo;
+          if (useMuJoCo) {
             try {
-              objectManagerRef.current?.update(eq);
-              objectManagerRef.current?.syncVisuals();
+              mujocoObjectManagerRef.current?.update();
+              mujocoObjectManagerRef.current?.syncVisuals();
             } catch (error) {
-              Logger.warn("ObjectManager update error caught safely", error);
+              Logger.warn("MuJoCoObjectManager update error caught safely", error);
+            }
+          } else {
+            const eq = physics.getEventQueue();
+            if (eq) {
+              try {
+                objectManagerRef.current?.update(eq);
+                objectManagerRef.current?.syncVisuals();
+              } catch (error) {
+                Logger.warn("ObjectManager update error caught safely", error);
+              }
             }
           }
 
@@ -350,10 +379,16 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       humanoidPhysicsBinderRef.current.friction = worldStore.globalFriction;
     }
     // Also update friction on all spawned objects
-    if (objectManagerRef.current) {
-      objectManagerRef.current.setGlobalFriction(worldStore.globalFriction);
+    if (worldStore.useMuJoCo) {
+      if (mujocoObjectManagerRef.current) {
+        mujocoObjectManagerRef.current.setGlobalFriction(worldStore.globalFriction);
+      }
+    } else {
+      if (objectManagerRef.current) {
+        objectManagerRef.current.setGlobalFriction(worldStore.globalFriction);
+      }
     }
-  }, [worldStore.globalFriction]);
+  }, [worldStore.globalFriction, worldStore.useMuJoCo]);
 
   useEffect(() => {
     if (humanoidPhysicsBinderRef.current) {
@@ -395,23 +430,25 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
   // Handle object renaming, physics update, and deletion
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     const handleRename = (e: any) => {
       const { id, name } = e.detail;
-      objectManagerRef.current?.renameObject(id, name);
+      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      activeObjManager?.renameObject(id, name);
     };
 
     const handleUpdatePhysics = (e: any) => {
       const { id, updates } = e.detail;
-      objectManagerRef.current?.updateObjectPhysics(id, updates);
+      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      activeObjManager?.updateObjectPhysics(id, updates);
     };
 
     const handleDeleteObject = (e: any) => {
       const { id } = e.detail;
+      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
       // Detach TransformControls before removing the object to prevent
       // "not part of scene graph" errors from the gizmo tracking a removed object.
       worldEngineRef.current?.getCameraManager().attachTransform(null);
-      objectManagerRef.current?.deleteObject(id);
+      activeObjManager?.deleteObject(id);
       if (useUIStore.getState().selectedEntityId === id) {
         useUIStore.getState().setSelectedEntityId(null);
       }
@@ -429,7 +466,6 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
   // Bug 4 Fix: Subscribe to camera mode and relay to CameraManager
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     worldEngineRef.current?.getCameraManager().setMode(worldStore.cameraMode);
   }, [worldStore.cameraMode]);
 
@@ -444,7 +480,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       }
     }
 
-    const objectManager = objectManagerRef.current;
+    const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
     const spawnRadius = 2.2;
     let spawnPos = new THREE.Vector3();
     let placed = false;
@@ -456,7 +492,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       const candidateY = 0.6;
 
       let overlaps = false;
-      objectManager?.getObjects().forEach((obj) => {
+      activeObjManager?.getObjects().forEach((obj) => {
         if (overlaps) return;
         const dx = Math.abs(obj.mesh.position.x - candidateX);
         const dz = Math.abs(obj.mesh.position.z - candidateZ);
@@ -483,19 +519,18 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
   // Bug 3 Fix: Listen for object spawn events dispatched by ObjectSpawner UI
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     const handleSpawnEvent = (e: Event) => {
       const { presetId } = (e as CustomEvent).detail;
-      const objectManager = objectManagerRef.current;
-      if (!objectManager) {
-        Logger.warn('useWorld: spawnObject called but objectManager not ready');
+      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      if (!activeObjManager) {
+        Logger.warn('useWorld: spawnObject called but activeObjManager not ready');
         return;
       }
 
       const spawnPos = findSpawnPosition();
-      const obj = objectManager.spawnObject(presetId, spawnPos);
+      const obj = activeObjManager.spawnObject(presetId, spawnPos);
       if (obj) {
-        Logger.info(`useWorld: Object '${presetId}' spawned successfully (id=${obj.id}). Total objects: ${objectManager.getObjects().size}`);
+        Logger.info(`useWorld: Object '${presetId}' spawned successfully (id=${obj.id}). Total objects: ${activeObjManager.getObjects().size}`);
       } else {
         Logger.error(`useWorld: spawnObject returned null for presetId='${presetId}'`);
       }
@@ -506,15 +541,14 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [findSpawnPosition]);
 
   useEffect(() => {
-    if (useWorldStore.getState().useMuJoCo) return;
     const handleSpawnCustom = (e: Event) => {
       const { name, scene, isTerrain } = (e as CustomEvent).detail as {
         name: string;
         scene: THREE.Group;
         isTerrain: boolean;
       };
-      const objectManager = objectManagerRef.current;
-      if (!objectManager) return;
+      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      if (!activeObjManager) return;
 
       const box = new THREE.Box3().setFromObject(scene);
       const size = box.getSize(new THREE.Vector3());
@@ -525,7 +559,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
         spawnPos.y = Math.max(0.1, size.y / 2 + 0.01);
       }
 
-      const obj = objectManager.spawnCustomModel(scene, name, spawnPos, { isTerrain });
+      const obj = activeObjManager.spawnCustomModel(scene, name, spawnPos, { isTerrain });
       if (obj) {
         Logger.info(`useWorld: Custom model '${name}' spawned (id=${obj.id})`);
       }
@@ -907,8 +941,9 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       contact_forces = humanoidPhysicsBinderRef.current.getContactForces();
     }
 
-    const objects = objectManagerRef.current
-      ? Array.from(objectManagerRef.current.getObjects().values()).map((obj: any) => ({
+    const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+    const objects = activeObjManager
+      ? Array.from(activeObjManager.getObjects().values()).map((obj: any) => ({
           id: obj.id,
           type: obj.type,
           name: obj.name || obj.type,
@@ -970,9 +1005,14 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   return {
     isReady,
     getRagdoll: () => ragdollBuilderRef.current,
-    spawnObject: (presetId: string, pos: THREE.Vector3) =>
-      objectManagerRef.current?.spawnObject(presetId, pos),
-    deleteObject: (id: string) => objectManagerRef.current?.deleteObject(id),
+    spawnObject: (presetId: string, pos: THREE.Vector3) => {
+      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      return activeObjManager?.spawnObject(presetId, pos) || null;
+    },
+    deleteObject: (id: string) => {
+      const activeObjManager = useWorldStore.getState().useMuJoCo ? mujocoObjectManagerRef.current : objectManagerRef.current;
+      activeObjManager?.deleteObject(id);
+    },
     push: (partName: string, impulse: THREE.Vector3) => {
       if (worldStore.bodyType === 'humanoid' && humanoidPhysicsBinderRef.current) {
         humanoidPhysicsBinderRef.current.push(partName, impulse);
