@@ -17,6 +17,15 @@ export const getCollisionMask = (membership: number, filter: number): number => 
   return (membership << 16) | filter;
 };
 
+// ── MUJOCO COLLISION CONSTANTS ─────────────────────────────────────────
+// Bit 0 = Ragdoll
+// Bit 1 = Environment
+export const RAGDOLL_CONTYPE = 1;      // Bit 0
+export const RAGDOLL_CONAFFINITY = 2;   // Bit 1 (collides with environment)
+
+export const ENVIRONMENT_CONTYPE = 2;  // Bit 1
+export const ENVIRONMENT_CONAFFINITY = 3;// Bits 0+1 (collides with ragdoll and environment)
+
 // ═══════════════════════════════════════════════════════════════════════════
 // ANTHROPOMORPHIC BODY PHYSICS MATRIX
 // ═══════════════════════════════════════════════════════════════════════════
