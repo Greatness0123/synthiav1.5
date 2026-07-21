@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { MuJoCoPhysicsEngine } from './MuJoCoPhysicsEngine';
+import { PhysicsEngine } from './PhysicsEngine';
 import { COMPLETE_MIXAMO_PHYSICS_MATRIX } from '../../constants/physics';
 import SYNTHIA_RIG_CONSTRAINTS from '../../constants/rigConstraints';
 import { getAnatomicalLimitForBone } from '../../constants/anatomicalLimits';
@@ -162,7 +162,7 @@ export function generateHumanoidMJCF(
   const capsuleHalfHeight = Math.max(0.1, (modelHeight / 2) - capsuleRadius);
 
   const capsulePosThree = { x: modelX, y: capsuleCenterY, z: modelZ };
-  const capsulePosMj = MuJoCoPhysicsEngine.worldToMuJoCo(capsulePosThree);
+  const capsulePosMj = PhysicsEngine.worldToMuJoCo(capsulePosThree);
   const capsuleQuatMj = [1, 0, 0, 0]; // Identity rotation w,x,y,z
 
   // Root capsule coordinates and orientation in MuJoCo space
@@ -181,9 +181,13 @@ export function generateHumanoidMJCF(
     const threeQuat = new THREE.Quaternion();
     bone.getWorldQuaternion(threeQuat);
 
+    if (boneName === 'mixamorigspine' || boneName === 'mixamorigleftupleg') {
+      console.log(`[DEBUG BONE POSITION] ${boneName}: pos = ${threePos.x.toFixed(4)}, ${threePos.y.toFixed(4)}, ${threePos.z.toFixed(4)}, quat = ${threeQuat.x.toFixed(4)}, ${threeQuat.y.toFixed(4)}, ${threeQuat.z.toFixed(4)}, ${threeQuat.w.toFixed(4)}`);
+    }
+
     // Convert child absolute position/rotation to MuJoCo space
-    const childPosMj = MuJoCoPhysicsEngine.worldToMuJoCo(threePos);
-    const childQuatMj = MuJoCoPhysicsEngine.threeQuatToMuJoCo(threeQuat);
+    const childPosMj = PhysicsEngine.worldToMuJoCo(threePos);
+    const childQuatMj = PhysicsEngine.threeQuatToMuJoCo(threeQuat);
 
     // Using THREE to calculate relative pos and quat to parent in MuJoCo space
     const pChild = new THREE.Vector3(...childPosMj);

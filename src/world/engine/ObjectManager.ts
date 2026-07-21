@@ -1,56 +1,76 @@
 import * as THREE from 'three';
-import RAPIER from '@dimforge/rapier3d-compat';
 import { ObjectPreset, OBJECT_PRESETS } from '../../constants/objectPresets';
-import { RAGDOLL_GROUP, ENVIRONMENT_GROUP, getCollisionMask } from '../../constants/physics';
+import { PhysicsEngine } from './PhysicsEngine';
+import { CollisionAdapter } from './CollisionAdapter';
 import { AudioEngine } from './AudioEngine';
+import { logger as Logger } from '../../utils/logger';
 
 export interface WorldObject {
   id: string;
   name: string;
   preset: ObjectPreset;
   mesh: THREE.Mesh | THREE.Group;
-  rigidBody?: RAPIER.RigidBody;
-  colliders: RAPIER.Collider[];
-  onContact?: (other: RAPIER.Collider) => void;
+  colliders: number[]; // geom IDs in MuJoCo
+  onContact?: (otherId: number) => void;
+  // MuJoCo specific tracking fields
+  bodyName?: string;
+  bodyId?: number;
+  slotIndex?: number; // if pre-allocated
+  isCustom?: boolean;
 }
 
 export class ObjectManager {
-  private world: RAPIER.World;
+  private physicsEngine: PhysicsEngine;
   private scene: THREE.Scene;
   private objects: Map<string, WorldObject> = new Map();
   private audioEngine: AudioEngine;
 
+  // Track dragging state
   private draggingObjectId: string | null = null;
 
-  constructor(world: RAPIER.World, scene: THREE.Scene, audioEngine: AudioEngine) {
-    this.world = world;
+  // Primitive slot pool tracking (20 slots)
+  private slotClaimed: boolean[] = new Array(20).fill(false);
+  private slotToObjectId: Map<number, string> = new Map();
+
+  private eventCallback: ((type: string, data: any) => void) | null = null;
+
+  // Cache for custom mesh structures currently added to the scene to allow reloads
+  private customMeshesSpec: Array<{
+    id: string;
+    name: string;
+    preset: ObjectPreset;
+    position: THREE.Vector3;
+    quaternion?: THREE.Quaternion;
+    options: { isTerrain: boolean; mass?: number; friction?: number; restitution?: number };
+    vertices: Float32Array;
+    indices: Uint32Array;
+  }> = [];
+
+  constructor(physicsEngine: PhysicsEngine, scene: THREE.Scene, audioEngine: AudioEngine) {
+    this.physicsEngine = physicsEngine;
     this.scene = scene;
     this.audioEngine = audioEngine;
   }
-
-  private eventCallback: ((type: string, data: any) => void) | null = null;
 
   public setEventCallback(cb: (type: string, data: any) => void) {
     this.eventCallback = cb;
   }
 
   public setDraggingObject(id: string | null): void {
-
-    if (this.draggingObjectId && this.draggingObjectId !== id) {
-      const oldObj = this.objects.get(this.draggingObjectId);
-      if (oldObj && oldObj.rigidBody && oldObj.rigidBody.isValid() && oldObj.preset.mass > 0) {
-        oldObj.rigidBody.setBodyType(RAPIER.RigidBodyType.Dynamic, true);
-      }
-    }
-
     this.draggingObjectId = id;
-
     if (id) {
-      const newObj = this.objects.get(id);
-      if (newObj && newObj.rigidBody && newObj.rigidBody.isValid() && newObj.preset.mass > 0) {
-        newObj.rigidBody.setBodyType(RAPIER.RigidBodyType.KinematicPositionBased, true);
-        newObj.rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-        newObj.rigidBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+      const obj = this.objects.get(id);
+      if (obj && obj.bodyId !== undefined && obj.bodyId >= 0) {
+        // Zero out velocities on dragging start to prevent erratic physics throws
+        const world = this.physicsEngine.getWorld();
+        const qvel = this.physicsEngine.qvel;
+        const dofAdr = world.model.body_dofadr[obj.bodyId];
+        const dofNum = world.model.body_dofnum[obj.bodyId];
+        if (dofAdr !== undefined && dofNum === 6) {
+          for (let i = 0; i < 6; i++) {
+            qvel[dofAdr + i] = 0;
+          }
+        }
       }
     }
   }
@@ -93,6 +113,177 @@ export class ObjectManager {
     };
   }
 
+  /**
+   * Helper to perform scene state-capture, compilation, reload, and hydration
+   */
+  private reloadStateAndRehydrate(newMeshSpec?: any) {
+    this.physicsEngine.setMutating(true);
+    this.physicsEngine.setReady(false);
+
+    try {
+      const world = this.physicsEngine.getWorld();
+      const model = world.model;
+      const data = world.data;
+      const module = PhysicsEngine.getModule();
+      if (!module) return;
+
+      // 1. Capture current simulation state
+      const stateCache: Record<string, {
+        pos: [number, number, number];
+        quat: [number, number, number, number];
+        linvel: [number, number, number];
+        angvel: [number, number, number];
+      }> = {};
+
+      // Capture humanoid qpos / qvel
+      const humanoidQPos: number[] = [];
+      const humanoidQVel: number[] = [];
+      for (let i = 0; i < model.nq; i++) humanoidQPos.push(data.qpos[i]);
+      for (let i = 0; i < model.nv; i++) humanoidQVel.push(data.qvel[i]);
+
+      // Capture active dynamic objects state
+      this.objects.forEach((obj) => {
+        if (obj.bodyId !== undefined && obj.bodyId >= 0) {
+          const dofAdr = model.body_dofadr[obj.bodyId];
+          const dofNum = model.body_dofnum[obj.bodyId];
+          const qposAdr = model.jnt_qposadr[model.body_jntadr[obj.bodyId]];
+
+          if (dofNum === 6) {
+            stateCache[obj.id] = {
+              pos: [data.qpos[qposAdr], data.qpos[qposAdr + 1], data.qpos[qposAdr + 2]],
+              quat: [data.qpos[qposAdr + 3], data.qpos[qposAdr + 4], data.qpos[qposAdr + 5], data.qpos[qposAdr + 6]],
+              linvel: [data.qvel[dofAdr], data.qvel[dofAdr + 1], data.qvel[dofAdr + 2]],
+              angvel: [data.qvel[dofAdr + 3], data.qvel[dofAdr + 4], data.qvel[dofAdr + 5]],
+            };
+          }
+        }
+      });
+
+      // 2. Append new mesh to our custom specs
+      if (newMeshSpec) {
+        this.customMeshesSpec.push(newMeshSpec);
+      }
+
+      // 3. Rebuild the XML MJCF model
+      // Retrieve humanoid visual bones model structure
+      const skeletonBinder = (window as any).__SYNTHIA_HUMANOID_BINDER__;
+      if (!skeletonBinder) {
+        throw new Error('Hydration error: Humanoid binder reference is missing.');
+      }
+
+      // Generate base MJCF XML string
+      const baseXml = skeletonBinder.getMultiBodyManager().isActive
+        ? (window as any).__SYNTHIA_PHYSICS_ENGINE__.getWorld().model // load last loaded string
+        : skeletonBinder.getMultiBodyManager().generateBaseMJCF();
+
+      // Parse and construct the combined custom model XML tags
+      const customModelsXml = this.customMeshesSpec.map((spec) => {
+        const posMj = PhysicsEngine.worldToMuJoCo(spec.position);
+        const quatMj = spec.quaternion
+          ? PhysicsEngine.threeQuatToMuJoCo(spec.quaternion)
+          : [1, 0, 0, 0];
+
+        // Format vertex lists and index lists for MuJoCo XML
+        const verticesStr = Array.from(spec.vertices).join(' ');
+        const facesStr = Array.from(spec.indices).join(' ');
+
+        // Declare custom mesh assets inside an inline asset tag or globally
+        // For simplicity and XML structure compatibility, declare <asset> with <mesh> inside the body,
+        // and link them to <geom type="mesh" mesh="...">.
+        return `
+    <asset>
+      <mesh name="mesh_${spec.id}" vertex="${verticesStr}" face="${facesStr}"/>
+    </asset>
+    <body name="custom_${spec.id}" pos="${posMj[0]} ${posMj[1]} ${posMj[2]}" quat="${quatMj[0]} ${quatMj[1]} ${quatMj[2]} ${quatMj[3]}">
+      <freejoint name="custom_${spec.id}_joint"/>
+      <geom name="custom_geom_${spec.id}" type="mesh" mesh="mesh_${spec.id}" contype="2" conaffinity="1"/>
+      <inertial pos="0 0 0" mass="${spec.preset.mass}" diaginertia="0.1 0.1 0.1"/>
+    </body>`;
+      }).join('\n');
+
+      // Inject custom body models inside the worldbody before reload
+      let combinedXml = (window as any)._last_mjcf_loaded || baseXml;
+      if (typeof combinedXml !== 'string') {
+        // Fallback to generating raw XML template
+        combinedXml = skeletonBinder.getMultiBodyManager().isActive
+          ? skeletonBinder.getMultiBodyManager().deactivate() || ''
+          : '';
+      }
+
+      // Injecting before </worldbody>
+      const worldbodyEndIdx = combinedXml.lastIndexOf('</worldbody>');
+      if (worldbodyEndIdx >= 0) {
+        combinedXml = combinedXml.slice(0, worldbodyEndIdx) + customModelsXml + combinedXml.slice(worldbodyEndIdx);
+      }
+
+      // 4. Load compiled XML into the physics engine
+      this.physicsEngine.loadMJCFModel(combinedXml);
+      this.physicsEngine.setReady(true);
+
+      const newWorld = this.physicsEngine.getWorld();
+      const newModel = newWorld.model;
+      const newData = newWorld.data;
+
+      // 5. State rehydration into the new mjData heap view
+      // Rehydrate Humanoid state
+      for (let i = 0; i < Math.min(newModel.nq, humanoidQPos.length); i++) newData.qpos[i] = humanoidQPos[i];
+      for (let i = 0; i < Math.min(newModel.nv, humanoidQVel.length); i++) newData.qvel[i] = humanoidQVel[i];
+
+      // Rehydrate pre-allocated slot bodies and custom models
+      this.objects.forEach((obj) => {
+        // Look up new body ID after reload
+        let bodyId = -1;
+        if (obj.isCustom) {
+          bodyId = module.mj_name2id(newModel, module.mjtObj.mjOBJ_BODY.value, `custom_${obj.id}`);
+        } else if (obj.slotIndex !== undefined) {
+          bodyId = module.mj_name2id(newModel, module.mjtObj.mjOBJ_BODY.value, `env_slot_${obj.slotIndex}`);
+        }
+
+        if (bodyId >= 0) {
+          obj.bodyId = bodyId;
+          const cached = stateCache[obj.id];
+          if (cached) {
+            const dofAdr = newModel.body_dofadr[bodyId];
+            const qposAdr = newModel.jnt_qposadr[newModel.body_jntadr[bodyId]];
+
+            newData.qpos[qposAdr] = cached.pos[0];
+            newData.qpos[qposAdr + 1] = cached.pos[1];
+            newData.qpos[qposAdr + 2] = cached.pos[2];
+            newData.qpos[qposAdr + 3] = cached.quat[0];
+            newData.qpos[qposAdr + 4] = cached.quat[1];
+            newData.qpos[qposAdr + 5] = cached.quat[2];
+            newData.qpos[qposAdr + 6] = cached.quat[3];
+
+            newData.qvel[dofAdr] = cached.linvel[0];
+            newData.qvel[dofAdr + 1] = cached.linvel[1];
+            newData.qvel[dofAdr + 2] = cached.linvel[2];
+            newData.qvel[dofAdr + 3] = cached.angvel[0];
+            newData.qvel[dofAdr + 4] = cached.angvel[1];
+            newData.qvel[dofAdr + 5] = cached.angvel[2];
+          }
+
+          // Re-populate mapped geom colliders IDs
+          obj.colliders = [];
+          if (obj.isCustom) {
+            const geomId = module.mj_name2id(newModel, module.mjtObj.mjOBJ_GEOM.value, `custom_geom_${obj.id}`);
+            if (geomId >= 0) obj.colliders.push(geomId);
+          } else if (obj.slotIndex !== undefined) {
+            // Re-claim sibling geom ID (mapping cube, wedge, slope, ramp to box)
+            const actualPresetShapeId = ['cube', 'wedge', 'slope', 'ramp'].includes(obj.preset.id) ? 'box' : obj.preset.id;
+            const activeGeomName = `env_slot_${obj.slotIndex}_${actualPresetShapeId}`;
+            const geomId = module.mj_name2id(newModel, module.mjtObj.mjOBJ_GEOM.value, activeGeomName);
+            if (geomId >= 0) obj.colliders.push(geomId);
+          }
+        }
+      });
+
+    } catch (error) {
+      Logger.error('ObjectManager: Mesh reload and state hydration failed!', error);
+    } finally {
+      this.physicsEngine.setMutating(false);
+    }
+  }
+
   public spawnCustomModel(
     modelGroup: THREE.Group,
     name: string,
@@ -113,36 +304,6 @@ export class ObjectManager {
     group.userData.physics = { mass, friction, restitution };
     this.scene.add(group);
 
-    const rbDesc = mass > 0 ? RAPIER.RigidBodyDesc.dynamic() : RAPIER.RigidBodyDesc.fixed();
-    rbDesc.setTranslation(position.x, position.y, position.z);
-    const rigidBody = this.world.createRigidBody(rbDesc);
-
-    const { vertices, indices } = this.collectMeshGeometry(group);
-    let colDesc: RAPIER.ColliderDesc | null = null;
-
-    if (options.isTerrain && vertices.length >= 9 && indices.length >= 3) {
-      colDesc = RAPIER.ColliderDesc.trimesh(vertices, indices);
-    } else if (vertices.length >= 12) {
-      colDesc = RAPIER.ColliderDesc.convexHull(vertices);
-    }
-
-    if (!colDesc) {
-      const box = new THREE.Box3().setFromObject(group);
-      const size = box.getSize(new THREE.Vector3());
-      colDesc = RAPIER.ColliderDesc.cuboid(
-        Math.max(size.x / 2, 0.05),
-        Math.max(size.y / 2, 0.05),
-        Math.max(size.z / 2, 0.05)
-      );
-    }
-
-    const collider = this.world.createCollider(colDesc, rigidBody);
-    collider.setRestitution(restitution);
-    collider.setFriction(friction);
-    collider.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS | RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS);
-    const collisionMask = getCollisionMask(ENVIRONMENT_GROUP, RAGDOLL_GROUP | ENVIRONMENT_GROUP);
-    collider.setCollisionGroups(collisionMask);
-
     const preset: ObjectPreset = {
       id: `custom_${id}`,
       name,
@@ -153,74 +314,90 @@ export class ObjectManager {
       restitution,
     };
 
+    const { vertices, indices } = this.collectMeshGeometry(group);
+
     const worldObject: WorldObject = {
       id,
       name,
       preset,
       mesh: group,
-      rigidBody,
-      colliders: [collider],
+      colliders: [],
+      isCustom: true,
     };
 
     this.objects.set(id, worldObject);
+
+    // Call XML compilation reload and rehydration
+    this.reloadStateAndRehydrate({
+      id,
+      name,
+      preset,
+      position,
+      options,
+      vertices,
+      indices
+    });
+
     return worldObject;
   }
 
   public spawnObject(presetId: string, position: THREE.Vector3): WorldObject | null {
-    const preset = OBJECT_PRESETS.find(p => p.id === presetId);
+    if (presetId === 'piano') {
+      const id = Math.random().toString(36).substring(2, 9);
+      return this.spawnPiano(id, { id: 'piano', name: 'Piano', category: 'Interactive', icon: 'MusicNotes', mass: 50, friction: 0.5, restitution: 0.1 }, position);
+    }
+
+    const preset = OBJECT_PRESETS.find((p: any) => p.id === presetId);
     if (!preset) return null;
+
+    // 1. Find an unclaimed pre-allocated pool slot
+    const slotIdx = this.slotClaimed.indexOf(false);
+    if (slotIdx < 0) {
+      Logger.warn('ObjectManager: Pre-allocated slots exhausted (all 20 slots active!)');
+      return null;
+    }
 
     const id = Math.random().toString(36).substring(2, 9);
 
-    if (preset.id === 'piano') {
-      return this.spawnPiano(id, preset, position);
-    }
+    // 2. Set slot claimed
+    this.slotClaimed[slotIdx] = true;
+    this.slotToObjectId.set(slotIdx, id);
 
-    const rbDesc = preset.mass > 0 ? RAPIER.RigidBodyDesc.dynamic() : RAPIER.RigidBodyDesc.fixed();
-    rbDesc.setTranslation(position.x, position.y, position.z);
-    const rigidBody = this.world.createRigidBody(rbDesc);
-
+    // 3. Create visual representation in Three.js
     let geometry: THREE.BufferGeometry;
-    let colDesc: RAPIER.ColliderDesc;
-
     switch (preset.id) {
       case 'sphere':
         geometry = new THREE.SphereGeometry(0.5);
-        colDesc = RAPIER.ColliderDesc.ball(0.5);
         break;
       case 'cylinder':
         geometry = new THREE.CylinderGeometry(0.5, 0.5, 1);
-        colDesc = RAPIER.ColliderDesc.cylinder(0.5, 0.5);
         break;
       case 'wedge':
       case 'slope':
       case 'ramp':
         geometry = new THREE.BufferGeometry();
-
         const vertices = new Float32Array([
-          -0.5, -0.5,  0.5, // 0: front-bottom-left
-           0.5, -0.5,  0.5, // 1: front-bottom-right
-          -0.5, -0.5, -0.5, // 2: back-bottom-left
-           0.5, -0.5, -0.5, // 3: back-bottom-right
-          -0.5,  0.5, -0.5, // 4: back-top-left
-           0.5,  0.5, -0.5  
+          -0.5, -0.5,  0.5,
+           0.5, -0.5,  0.5,
+          -0.5, -0.5, -0.5,
+           0.5, -0.5, -0.5,
+          -0.5,  0.5, -0.5,
+           0.5,  0.5, -0.5
         ]);
         const indices = [
-          0, 1, 3, 0, 3, 2, // bottom
-          0, 1, 5, 0, 5, 4, // slope
-          2, 3, 5, 2, 5, 4, // back
-          0, 4, 2,          // left
-          1, 5, 3           
+          0, 1, 3, 0, 3, 2,
+          0, 1, 5, 0, 5, 4,
+          2, 3, 5, 2, 5, 4,
+          0, 4, 2,
+          1, 5, 3
         ];
         geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
         geometry.setIndex(indices);
         geometry.computeVertexNormals();
-        colDesc = RAPIER.ColliderDesc.convexHull(vertices) || RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
         break;
       case 'cube':
       default:
         geometry = new THREE.BoxGeometry(1, 1, 1);
-        colDesc = RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5);
         break;
     }
 
@@ -232,28 +409,67 @@ export class ObjectManager {
     mesh.userData.objectId = id;
     this.scene.add(mesh);
 
-    const collider = this.world.createCollider(colDesc, rigidBody);
-    collider.setRestitution(preset.restitution);
-    collider.setFriction(preset.friction);
-    collider.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS | RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS);
+    // 4. Activate MuJoCo sibling geom (sphere, box, cylinder, capsule) in the claiming slot body
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
+    const data = world.data;
+    const module = PhysicsEngine.getModule();
+    if (!module) return null;
 
-    const collisionMask = getCollisionMask(ENVIRONMENT_GROUP, RAGDOLL_GROUP | ENVIRONMENT_GROUP);
-    collider.setCollisionGroups(collisionMask);
+    const bodyName = `env_slot_${slotIdx}`;
+    const bodyId = module.mj_name2id(model, module.mjtObj.mjOBJ_BODY.value, bodyName);
+    if (bodyId < 0) return null;
+
+    // Activate the corresponding sibling geom size and collision bits
+    // We map cube, wedge, slope, ramp to oriented dynamic box geoms as confirmed by the user
+    const actualPresetShapeId = ['cube', 'wedge', 'slope', 'ramp'].includes(preset.id) ? 'box' : preset.id;
+    const activeGeomName = `env_slot_${slotIdx}_${actualPresetShapeId}`;
+    const geomId = module.mj_name2id(model, module.mjtObj.mjOBJ_GEOM.value, activeGeomName);
+
+    if (geomId >= 0) {
+      // Set correct size dimensions
+      const adapterGeom = CollisionAdapter.objectPresetToMJCFGeom(preset);
+      const sizeValues = adapterGeom.size.split(' ').map(Number);
+
+      // Update sizes in MjModel directly (size size stride)
+      const sizeOffset = geomId * 3;
+      model.geom_size[sizeOffset] = sizeValues[0] || 0;
+      model.geom_size[sizeOffset + 1] = sizeValues[1] || 0;
+      model.geom_size[sizeOffset + 2] = sizeValues[2] || 0;
+
+      // Enable collision parameters (ENVIRONMENT_CONTYPE = 2, ENVIRONMENT_CONAFFINITY = 3)
+      model.geom_contype[geomId] = 2;
+      model.geom_conaffinity[geomId] = 3;
+
+      // Set global friction & restitution in model
+      model.geom_friction[geomId * 3] = preset.friction;
+      model.geom_solref[geomId * 2] = 0.02; // default solref kp
+      model.geom_solimp[geomId * 3 + 2] = preset.restitution; // default solimp damp
+    }
+
+    // Move pre-allocated body slot position to spawn coordinates in qpos (freejoint has 7 coordinates: x,y,z, w,x,y,z)
+    const qposAdr = model.jnt_qposadr[model.body_jntadr[bodyId]];
+    const posMj = PhysicsEngine.worldToMuJoCo(position);
+    data.qpos[qposAdr] = posMj[0];
+    data.qpos[qposAdr + 1] = posMj[1];
+    data.qpos[qposAdr + 2] = posMj[2];
 
     const worldObject: WorldObject = {
       id,
       name: preset.name,
       preset,
       mesh,
-      rigidBody,
-      colliders: [collider]
+      colliders: geomId >= 0 ? [geomId] : [],
+      bodyName,
+      bodyId,
+      slotIndex: slotIdx,
     };
 
     this.objects.set(id, worldObject);
     return worldObject;
   }
 
-  private spawnPiano(id: string, preset: ObjectPreset, position: THREE.Vector3): WorldObject {
+  public spawnPiano(id: string, preset: ObjectPreset, position: THREE.Vector3): WorldObject {
     const group = new THREE.Group();
     group.position.copy(position);
     group.name = preset.name;
@@ -261,12 +477,7 @@ export class ObjectManager {
     group.userData.objectId = id;
     this.scene.add(group);
 
-    const rbDesc = RAPIER.RigidBodyDesc.fixed();
-    rbDesc.setTranslation(position.x, position.y, position.z);
-    const rigidBody = this.world.createRigidBody(rbDesc);
-
-    const colliders: RAPIER.Collider[] = [];
-
+    // Build Three.js visual key blocks matching the pre-allocated boxes
     for (let i = 0; i < 88; i++) {
       const isBlack = [1, 3, 6, 8, 10].includes((i + 9) % 12);
       const width = isBlack ? 0.012 : 0.022;
@@ -278,34 +489,62 @@ export class ObjectManager {
       const mat = new THREE.MeshStandardMaterial({ color });
       const mesh = new THREE.Mesh(geo, mat);
 
-      const xOffset = (i - 44) * 0.023; 
+      const xOffset = (i - 44) * 0.023;
       const yOffset = isBlack ? 0.015 : 0;
       const zOffset = isBlack ? -0.02 : 0;
 
       mesh.position.set(xOffset, yOffset, zOffset);
       group.add(mesh);
-
-      const colDesc = RAPIER.ColliderDesc.cuboid(width / 2, height / 2, depth / 2);
-      colDesc.setTranslation(xOffset, yOffset, zOffset);
-      colDesc.setSensor(true);
-      colDesc.setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS | RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS);
-
-      const collisionMask = getCollisionMask(ENVIRONMENT_GROUP, RAGDOLL_GROUP | ENVIRONMENT_GROUP);
-      colDesc.setCollisionGroups(collisionMask);
-
-      const collider = this.world.createCollider(colDesc, rigidBody);
-
-      const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-      const midiNote = 21 + i; 
-      const octave = Math.floor(midiNote / 12) - 1;
-      const noteIndex = midiNote % 12;
-      const noteName = NOTE_NAMES[noteIndex] + octave;
-      (collider as any)._synthiaNote = noteName;
-
-      colliders.push(collider);
     }
 
-    const worldObject: WorldObject = { id, name: preset.name, preset, mesh: group, rigidBody, colliders };
+    // Activate pre-allocated piano body
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
+    const data = world.data;
+    const module = PhysicsEngine.getModule();
+
+    let pianoBodyId = -1;
+    const colliders: number[] = [];
+
+    if (module) {
+      pianoBodyId = module.mj_name2id(model, module.mjtObj.mjOBJ_BODY.value, 'piano_body');
+      if (pianoBodyId >= 0) {
+        // Move piano body to spawn point
+        const qposAdr = model.jnt_qposadr[model.body_jntadr[pianoBodyId]];
+        const posMj = PhysicsEngine.worldToMuJoCo(position);
+        data.qpos[qposAdr] = posMj[0];
+        data.qpos[qposAdr + 1] = posMj[1];
+        data.qpos[qposAdr + 2] = posMj[2];
+
+        // Enable collision masks (contype/conaffinity) for all 88 keys
+        const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        for (let i = 0; i < 88; i++) {
+          const midiNote = 21 + i;
+          const octave = Math.floor(midiNote / 12) - 1;
+          const noteIndex = midiNote % 12;
+          const noteName = NOTE_NAMES[noteIndex] + octave;
+
+          const geomId = module.mj_name2id(model, module.mjtObj.mjOBJ_GEOM.value, `piano_${noteName}`);
+          if (geomId >= 0) {
+            colliders.push(geomId);
+            // Sensor key: ENVIRONMENT_CONTYPE=2, ENVIRONMENT_CONAFFINITY=3 (can be triggered as sensor note)
+            model.geom_contype[geomId] = 2;
+            model.geom_conaffinity[geomId] = 3;
+          }
+        }
+      }
+    }
+
+    const worldObject: WorldObject = {
+      id,
+      name: preset.name,
+      preset,
+      mesh: group,
+      colliders,
+      bodyName: 'piano_body',
+      bodyId: pianoBodyId,
+    };
+
     this.objects.set(id, worldObject);
     return worldObject;
   }
@@ -330,23 +569,17 @@ export class ObjectManager {
     if (updates.friction !== undefined) obj.preset.friction = updates.friction;
     if (updates.restitution !== undefined) obj.preset.restitution = updates.restitution;
 
-    if (obj.rigidBody && obj.rigidBody.isValid() && updates.mass !== undefined) {
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
 
-      if (obj.preset.mass > 0) {
-        // We cannot directly set total mass easily without resetting the mass properties, 
-        // but we can set the additional mass if we zero out the collider mass.
-        // Actually, Rapier allows `setAdditionalMass`. Let's just update the userData physics for now.
+    obj.colliders.forEach((geomId) => {
+      if (updates.friction !== undefined) {
+        model.geom_friction[geomId * 3] = updates.friction;
       }
-    }
-
-    if (obj.colliders.length > 0) {
-      for (const collider of obj.colliders) {
-        if (collider.isValid()) {
-          if (updates.friction !== undefined) collider.setFriction(updates.friction);
-          if (updates.restitution !== undefined) collider.setRestitution(updates.restitution);
-        }
+      if (updates.restitution !== undefined) {
+        model.geom_solimp[geomId * 3 + 2] = updates.restitution;
       }
-    }
+    });
 
     if (obj.mesh) {
       obj.mesh.userData.physics = {
@@ -360,39 +593,45 @@ export class ObjectManager {
   public setGlobalFriction(friction: number): void {
     this.objects.forEach((obj) => {
       obj.preset.friction = friction;
-      for (const collider of obj.colliders) {
-        if (collider.isValid()) {
-          collider.setFriction(friction);
-        }
-      }
-      if (obj.mesh) {
-        obj.mesh.userData.physics = {
-          mass: obj.preset.mass,
-          friction,
-          restitution: obj.preset.restitution,
-        };
-      }
+      this.updateObjectPhysics(obj.id, { friction });
     });
   }
 
   public setObjectPosition(id: string, position: THREE.Vector3, quaternion?: THREE.Quaternion): void {
     const obj = this.objects.get(id);
-    if (!obj || !obj.rigidBody || !obj.rigidBody.isValid()) return;
+    if (!obj || obj.bodyId === undefined || obj.bodyId < 0) return;
 
-    if (obj.preset.mass > 0) {
-      if (this.draggingObjectId === id) {
-        obj.rigidBody.setNextKinematicTranslation({ x: position.x, y: position.y, z: position.z });
-        if (quaternion) {
-          obj.rigidBody.setNextKinematicRotation({ x: quaternion.x, y: quaternion.y, z: quaternion.z, w: quaternion.w });
-        }
-      } else {
-        obj.rigidBody.setTranslation({ x: position.x, y: position.y, z: position.z }, true);
-        if (quaternion) {
-          obj.rigidBody.setRotation({ x: quaternion.x, y: quaternion.y, z: quaternion.z, w: quaternion.w }, true);
-        }
-        obj.rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
-        obj.rigidBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
-      }
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
+    const data = world.data;
+
+    const jntAdr = model.body_jntadr[obj.bodyId];
+    if (jntAdr < 0) return;
+
+    const qposAdr = model.jnt_qposadr[jntAdr];
+    const dofAdr = model.body_dofadr[obj.bodyId];
+
+    const posMj = PhysicsEngine.worldToMuJoCo(position);
+    data.qpos[qposAdr] = posMj[0];
+    data.qpos[qposAdr + 1] = posMj[1];
+    data.qpos[qposAdr + 2] = posMj[2];
+
+    if (quaternion) {
+      const quatMj = PhysicsEngine.threeQuatToMuJoCo(quaternion);
+      data.qpos[qposAdr + 3] = quatMj[0];
+      data.qpos[qposAdr + 4] = quatMj[1];
+      data.qpos[qposAdr + 5] = quatMj[2];
+      data.qpos[qposAdr + 6] = quatMj[3];
+    }
+
+    // Zero out velocities to ensure accurate static placement
+    if (dofAdr >= 0) {
+      data.qvel[dofAdr] = 0;
+      data.qvel[dofAdr + 1] = 0;
+      data.qvel[dofAdr + 2] = 0;
+      data.qvel[dofAdr + 3] = 0;
+      data.qvel[dofAdr + 4] = 0;
+      data.qvel[dofAdr + 5] = 0;
     }
   }
 
@@ -413,22 +652,47 @@ export class ObjectManager {
       });
     }
 
-    obj.colliders.forEach((collider) => {
-      try {
-        if (collider.isValid()) {
-          this.world.removeCollider(collider, true);
-        }
-      } catch (e) {
-        console.warn('ObjectManager: Collider removal caught', e);
-      }
-    });
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
+    const data = world.data;
 
-    try {
-      if (obj.rigidBody && obj.rigidBody.isValid()) {
-        this.world.removeRigidBody(obj.rigidBody);
+    // Reset geom collision/size bounds on slot releasing
+    if (obj.slotIndex !== undefined) {
+      this.slotClaimed[obj.slotIndex] = false;
+      this.slotToObjectId.delete(obj.slotIndex);
+
+      obj.colliders.forEach((geomId) => {
+        // Zero size and disable collision bits
+        const sizeOffset = geomId * 3;
+        model.geom_size[sizeOffset] = 0.001;
+        model.geom_size[sizeOffset + 1] = 0.001;
+        model.geom_size[sizeOffset + 2] = 0.001;
+
+        model.geom_contype[geomId] = 0;
+        model.geom_conaffinity[geomId] = 0;
+      });
+
+      // Move body far below scene to hide it from step constraints
+      if (obj.bodyId !== undefined && obj.bodyId >= 0) {
+        const qposAdr = model.jnt_qposadr[model.body_jntadr[obj.bodyId]];
+        data.qpos[qposAdr] = 0;
+        data.qpos[qposAdr + 1] = 0;
+        data.qpos[qposAdr + 2] = -10; // underground
       }
-    } catch (e) {
-      console.warn('ObjectManager: RigidBody removal caught', e);
+    } else if (obj.preset.id === 'piano' && obj.bodyId !== undefined && obj.bodyId >= 0) {
+      // Deactivate pre-allocated piano body
+      obj.colliders.forEach((geomId) => {
+        model.geom_contype[geomId] = 0;
+        model.geom_conaffinity[geomId] = 0;
+      });
+      const qposAdr = model.jnt_qposadr[model.body_jntadr[obj.bodyId]];
+      data.qpos[qposAdr] = 0;
+      data.qpos[qposAdr + 1] = 0;
+      data.qpos[qposAdr + 2] = -30; // deep underground
+    } else if (obj.isCustom) {
+      // Custom uploaded dynamic meshes: remove spec and reload state to fully strip from the XML memory compilation
+      this.customMeshesSpec = this.customMeshesSpec.filter(spec => spec.id !== id);
+      this.reloadStateAndRehydrate();
     }
 
     this.objects.delete(id);
@@ -439,85 +703,93 @@ export class ObjectManager {
   }
 
   public syncVisuals() {
+    const world = this.physicsEngine.getWorld();
+    const model = world.model;
+    const data = world.data;
+
     this.objects.forEach((obj) => {
-      if (!obj.rigidBody || !obj.rigidBody.isValid()) return;
+      if (obj.bodyId === undefined || obj.bodyId < 0) return;
 
-      if (obj.id === this.draggingObjectId && obj.preset.mass > 0) {
+      const jntAdr = model.body_jntadr[obj.bodyId];
+      if (jntAdr < 0) return;
 
-        obj.rigidBody.setNextKinematicTranslation({
-          x: obj.mesh.position.x,
-          y: obj.mesh.position.y,
-          z: obj.mesh.position.z,
-        });
-        obj.rigidBody.setNextKinematicRotation({
-          x: obj.mesh.quaternion.x,
-          y: obj.mesh.quaternion.y,
-          z: obj.mesh.quaternion.z,
-          w: obj.mesh.quaternion.w,
-        });
-      } else if (obj.preset.mass > 0) {
+      const qposAdr = model.jnt_qposadr[jntAdr];
 
-        const pos = obj.rigidBody.translation();
-        const rot = obj.rigidBody.rotation();
-        obj.mesh.position.set(pos.x, pos.y, pos.z);
-        obj.mesh.quaternion.set(rot.x, rot.y, rot.z, rot.w);
+      if (obj.id === this.draggingObjectId) {
+        // Direct kinematic visual mapping
+        const posMj = PhysicsEngine.worldToMuJoCo(obj.mesh.position);
+        data.qpos[qposAdr] = posMj[0];
+        data.qpos[qposAdr + 1] = posMj[1];
+        data.qpos[qposAdr + 2] = posMj[2];
+
+        const quatMj = PhysicsEngine.threeQuatToMuJoCo(obj.mesh.quaternion);
+        data.qpos[qposAdr + 3] = quatMj[0];
+        data.qpos[qposAdr + 4] = quatMj[1];
+        data.qpos[qposAdr + 5] = quatMj[2];
+        data.qpos[qposAdr + 6] = quatMj[3];
+      } else {
+        // MuJoCo positions (p_mj = [x, y, z]) converted back to Three.js coordinates
+        const x_mj = data.qpos[qposAdr];
+        const y_mj = data.qpos[qposAdr + 1];
+        const z_mj = data.qpos[qposAdr + 2];
+        const posThree = PhysicsEngine.mujocoToWorld([x_mj, y_mj, z_mj]);
+        obj.mesh.position.set(posThree.x, posThree.y, posThree.z);
+
+        const qW = data.qpos[qposAdr + 3];
+        const qX = data.qpos[qposAdr + 4];
+        const qY = data.qpos[qposAdr + 5];
+        const qZ = data.qpos[qposAdr + 6];
+        const rotThree = PhysicsEngine.mujocoQuatToThree([qW, qX, qY, qZ]);
+        obj.mesh.quaternion.set(rotThree.x, rotThree.y, rotThree.z, rotThree.w);
       }
     });
   }
 
-  public update(eventQueue: RAPIER.EventQueue) {
-    const eventsBuffer: { handle1: number; handle2: number }[] = [];
+  public update() {
+    const module = PhysicsEngine.getModule();
+    if (!module) return;
 
-    try {
-      eventQueue.drainCollisionEvents((handle1: number, handle2: number, started: boolean) => {
-        if (started) {
-          eventsBuffer.push({ handle1, handle2 });
+    const world = this.physicsEngine.getWorld();
+    const pairs = CollisionAdapter.getCollisionPairs(module, world.model, world.data);
+
+    // Track triggered note events to prevent duplicate frame fires
+    const triggeredNotes = new Set<string>();
+
+    pairs.forEach((pair) => {
+      // 1. Piano Notes Detection: Check if either geom matches piano_key sequence
+      const pianoKeyPrefix = 'piano_';
+      let keyGeomName: string | null = null;
+      if (pair.name1.startsWith(pianoKeyPrefix)) keyGeomName = pair.name1;
+      else if (pair.name2.startsWith(pianoKeyPrefix)) keyGeomName = pair.name2;
+
+      if (keyGeomName) {
+        const note = keyGeomName.substring(pianoKeyPrefix.length);
+        if (!triggeredNotes.has(note)) {
+          triggeredNotes.add(note);
+          if (this.eventCallback) {
+            this.eventCallback('piano_note', { note });
+            this.audioEngine.playNote(note);
+          }
         }
-      });
-    } catch (error) {
-      console.warn('ObjectManager: Collision event drain failed safely caught:', error);
-      return;
-    }
-
-    const activeColliders: { col1: RAPIER.Collider; col2: RAPIER.Collider }[] = [];
-    for (const event of eventsBuffer) {
-      try {
-        const col1 = this.world.getCollider(event.handle1);
-        const col2 = this.world.getCollider(event.handle2);
-        if (col1 && col2 && col1.isValid() && col2.isValid()) {
-          activeColliders.push({ col1, col2 });
-        }
-      } catch (error) {
-        continue;
-      }
-    }
-
-    for (const pair of activeColliders) {
-      const { col1, col2 } = pair;
-
-      const note = (col1 as any)._synthiaNote || (col2 as any)._synthiaNote;
-      if (note && this.eventCallback) {
-        this.eventCallback('piano_note', { note });
-        this.audioEngine.playNote(note);
       }
 
+      // 2. Button Press Callback: check if either geom belongs to a claims slot of a button primitive
       this.objects.forEach((obj) => {
-        if (
-          obj.preset.id === 'button' &&
-          (obj.colliders.includes(col1) || obj.colliders.includes(col2))
-        ) {
-          if (this.eventCallback) this.eventCallback('button_press', { id: obj.id });
+        if (obj.preset.id === 'button') {
+          if (obj.colliders.includes(pair.geom1Id) || obj.colliders.includes(pair.geom2Id)) {
+            if (this.eventCallback) this.eventCallback('button_press', { id: obj.id });
 
-          if (obj.mesh instanceof THREE.Mesh) {
-            obj.mesh.material = new THREE.MeshStandardMaterial({ color: 0xffffff });
-            setTimeout(() => {
-              if (obj.mesh && obj.mesh instanceof THREE.Mesh) {
-                obj.mesh.material = new THREE.MeshStandardMaterial({ color: 0xcc0000 });
-              }
-            }, 200);
+            if (obj.mesh instanceof THREE.Mesh) {
+              obj.mesh.material = new THREE.MeshStandardMaterial({ color: 0xffffff });
+              setTimeout(() => {
+                if (obj.mesh && obj.mesh instanceof THREE.Mesh) {
+                  obj.mesh.material = new THREE.MeshStandardMaterial({ color: 0xcc0000 });
+                }
+              }, 200);
+            }
           }
         }
       });
-    }
+    });
   }
 }

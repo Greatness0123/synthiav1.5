@@ -1,20 +1,13 @@
 import * as THREE from 'three';
-import RAPIER from '@dimforge/rapier3d-compat';
-import { logger as Logger } from '../../utils/logger';
 
 export interface RigidBodyMap {
-
-  [canonicalName: string]: RAPIER.RigidBody;
+  [canonicalName: string]: any;
 }
 
 export interface BoneSyncConfig {
-
   canonicalName: string;
-
   syncRotation: boolean;
-
   syncTranslation: boolean;
-
   rootOffsetY?: number;
 }
 
@@ -87,7 +80,7 @@ export class AvatarSynchronizer {
 
   public synchronize(
     bonesMap: Map<string, { bone: THREE.Bone; worldPosition: THREE.Vector3 }>,
-    rigidBodies: Map<string, RAPIER.RigidBody>,
+    rigidBodies: Map<string, any>,
     disableSync?: Set<string>
   ): void {
 
@@ -144,7 +137,7 @@ export class AvatarSynchronizer {
 
   public syncRoot(
     modelRoot: THREE.Group,
-    physicsRoot: RAPIER.RigidBody,
+    physicsRoot: any,
     capsuleCenterY: number
   ): void {
     if (!physicsRoot.isValid()) return;
@@ -158,7 +151,7 @@ export class AvatarSynchronizer {
 
   public syncSkinnedMesh(
     root: THREE.Object3D,
-    rigidBodies: Map<string, RAPIER.RigidBody>,
+    rigidBodies: Map<string, any>,
     canonicalNameMap: Map<string, string>, // actualBoneName → canonicalName
     disableSync?: Set<string>
   ): void {

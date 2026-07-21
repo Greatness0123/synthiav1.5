@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
-import { MuJoCoObjectManager } from '../MuJoCoObjectManager';
-import { MuJoCoPhysicsEngine } from '../MuJoCoPhysicsEngine';
+import { ObjectManager } from '../ObjectManager';
+import { PhysicsEngine } from '../PhysicsEngine';
 import { generateHumanoidMJCF } from '../MJCFHumanoidTemplate';
 import { AudioEngine } from '../AudioEngine';
 import * as THREE from 'three';
@@ -16,14 +16,14 @@ declare function expect(actual: unknown): {
   toBeGreaterThanOrEqual(expected: number): void;
 };
 
-describe('MuJoCoObjectManager', () => {
-  let engine: MuJoCoPhysicsEngine;
+describe('ObjectManager', () => {
+  let engine: PhysicsEngine;
   let scene: THREE.Scene;
   let audioEngine: AudioEngine;
-  let objectManager: MuJoCoObjectManager;
+  let objectManager: ObjectManager;
 
   beforeEach(async () => {
-    engine = new MuJoCoPhysicsEngine();
+    engine = new PhysicsEngine();
     await engine.init();
 
     // Generate base humanoid MJCF and compile/load it so we have pre-allocated slots compiled
@@ -37,7 +37,7 @@ describe('MuJoCoObjectManager', () => {
 
     scene = new THREE.Scene();
     audioEngine = new AudioEngine();
-    objectManager = new MuJoCoObjectManager(engine, scene, audioEngine);
+    objectManager = new ObjectManager(engine, scene, audioEngine);
   });
 
   afterEach(() => {

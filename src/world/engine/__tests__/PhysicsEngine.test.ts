@@ -12,13 +12,13 @@ declare function expect(actual: unknown): {
   toBeGreaterThanOrEqual(expected: number): void;
 };
 
-import { MuJoCoPhysicsEngine } from '../MuJoCoPhysicsEngine';
+import { PhysicsEngine } from '../PhysicsEngine';
 
-describe('MuJoCoPhysicsEngine', () => {
-  let engine: MuJoCoPhysicsEngine;
+describe('PhysicsEngine', () => {
+  let engine: PhysicsEngine;
 
   beforeEach(() => {
-    engine = new MuJoCoPhysicsEngine();
+    engine = new PhysicsEngine();
   });
 
   afterEach(() => {
@@ -55,11 +55,11 @@ describe('MuJoCoPhysicsEngine', () => {
   test('quaternion conversion helpers work correctly', () => {
     // 1. Identity quaternion
     const identityThree = { x: 0, y: 0, z: 0, w: 1 };
-    const convertedIdentity = MuJoCoPhysicsEngine.threeQuatToMuJoCo(identityThree);
+    const convertedIdentity = PhysicsEngine.threeQuatToMuJoCo(identityThree);
     // Should be transformed via Q_align conjugation
     // Q_align = (-90 deg about X) = [w: 0.7071, x: -0.7071, y: 0, z: 0]
     // Under identity, converted should be [0.7071, -0.7071, 0, 0] (or similar normalized, depending on direction)
-    const backToThreeIdentity = MuJoCoPhysicsEngine.mujocoQuatToThree(convertedIdentity);
+    const backToThreeIdentity = PhysicsEngine.mujocoQuatToThree(convertedIdentity);
 
     // Check back conversion gives back identity
     expect(Math.abs(backToThreeIdentity.x)).toBeLessThanOrEqual(1e-5);
@@ -70,8 +70,8 @@ describe('MuJoCoPhysicsEngine', () => {
     // 2. Clean 90 deg rotation about X
     // (x: sin(45) = 0.7071, y: 0, z: 0, w: cos(45) = 0.7071)
     const rotXThree = { x: 0.70710678, y: 0, z: 0, w: 0.70710678 };
-    const convertedRotX = MuJoCoPhysicsEngine.threeQuatToMuJoCo(rotXThree);
-    const backToThreeRotX = MuJoCoPhysicsEngine.mujocoQuatToThree(convertedRotX);
+    const convertedRotX = PhysicsEngine.threeQuatToMuJoCo(rotXThree);
+    const backToThreeRotX = PhysicsEngine.mujocoQuatToThree(convertedRotX);
 
     expect(Math.abs(backToThreeRotX.x - 0.70710678)).toBeLessThanOrEqual(1e-5);
     expect(Math.abs(backToThreeRotX.y)).toBeLessThanOrEqual(1e-5);
@@ -97,7 +97,7 @@ describe('MuJoCoPhysicsEngine', () => {
     `.trim();
 
     // Since we need to write this to virtual filesystem to parse it, we initialize manually
-    const module = (MuJoCoPhysicsEngine as any).mujocoModule;
+    const module = (PhysicsEngine as any).mujocoModule;
     if (module) {
       module.FS.writeFile('/test_model.xml', testMJCF);
       const testModel = module.MjModel.mj_loadXML('/test_model.xml');
@@ -134,7 +134,7 @@ describe('MuJoCoPhysicsEngine', () => {
 
   test('mj_ray function call probe', async () => {
     await engine.init();
-    const module = (MuJoCoPhysicsEngine as any).mujocoModule;
+    const module = (PhysicsEngine as any).mujocoModule;
     if (module) {
       const testMJCF = `
 <mujoco model="synthia_phase1_ray_test">

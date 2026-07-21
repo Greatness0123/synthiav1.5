@@ -2,7 +2,7 @@
  * Modal for exporting simulation data with side-panel preview.
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useUIStore } from '../../store/uiStore';
 import { useCoordinator } from '../../world/hooks/useCoordinator';
 import { useConnectionStore } from '../../store/connectionStore';

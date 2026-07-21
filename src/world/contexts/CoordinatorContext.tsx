@@ -10,13 +10,12 @@ import { useLogStore } from '../../store/logStore';
 import { SKILL_RUNGS } from '../../constants/progressionLadder';
 import { synthiaToast } from '../../components/ui/Toast';
 import { logger as Logger } from '../../utils/logger';
-import { RagdollBuilder } from '../engine/RagdollBuilder';
 
 type MessageListener = (msg: { type: string; data: any }) => void;
 
 interface CoordinatorContextType {
   sendMessage: (type: string, data: Record<string, any>) => void;
-  setRagdoll: (ragdoll: RagdollBuilder | null) => void;
+  setRagdoll: (ragdoll: any | null) => void;
   onMessage: (listener: MessageListener) => () => void;
 }
 
@@ -31,7 +30,7 @@ function normalizeWebSocketUrl(url: string): string {
 
 export const CoordinatorProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const socketRef = useRef<WebSocket | null>(null);
-  const ragdollRef = useRef<RagdollBuilder | null>(null);
+  const ragdollRef = useRef<any | null>(null);
   const { endpoint, setStatus, setMetrics } = useConnectionStore();
   const { setExportProgress } = useUIStore();
   const {
@@ -48,7 +47,7 @@ export const CoordinatorProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setRung
   } = useAgentStore();
 
-  const setRagdoll = useCallback((ragdoll: RagdollBuilder | null) => {
+  const setRagdoll = useCallback((ragdoll: any | null) => {
     ragdollRef.current = ragdoll;
   }, []);
 

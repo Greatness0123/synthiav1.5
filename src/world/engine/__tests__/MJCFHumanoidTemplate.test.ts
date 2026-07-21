@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import { generateHumanoidMJCF } from '../MJCFHumanoidTemplate';
-import { MuJoCoPhysicsEngine } from '../MuJoCoPhysicsEngine';
+import { PhysicsEngine } from '../PhysicsEngine';
 
 declare function describe(name: string, fn: () => void): void;
 declare function beforeEach(fn: () => void): void;
@@ -17,10 +17,10 @@ declare function expect(actual: unknown): {
 };
 
 describe('MJCFHumanoidTemplate', () => {
-  let engine: MuJoCoPhysicsEngine;
+  let engine: PhysicsEngine;
 
   beforeEach(() => {
-    engine = new MuJoCoPhysicsEngine();
+    engine = new PhysicsEngine();
   });
 
   afterEach(() => {

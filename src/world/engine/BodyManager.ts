@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { MuJoCoPhysicsEngine } from './MuJoCoPhysicsEngine';
+import { PhysicsEngine } from './PhysicsEngine';
 import { generateHumanoidMJCF } from './MJCFHumanoidTemplate';
 import { logger as Logger } from '../../utils/logger';
 
-export class MuJoCoBodyManager {
-  private physicsEngine: MuJoCoPhysicsEngine;
+export class BodyManager {
+  private physicsEngine: PhysicsEngine;
   private modelRoot: THREE.Group | null = null;
   private capsuleCenterY: number = 0;
   private _boneInfoMap: Map<string, { bone: THREE.Bone; worldPosition: THREE.Vector3 }> | null = null;
@@ -16,7 +16,7 @@ export class MuJoCoBodyManager {
 
   public isActive: boolean = false;
 
-  constructor(physicsEngine: MuJoCoPhysicsEngine) {
+  constructor(physicsEngine: PhysicsEngine) {
     this.physicsEngine = physicsEngine;
   }
 
@@ -49,7 +49,7 @@ export class MuJoCoBodyManager {
 
       const world = this.physicsEngine.getWorld();
       const model = world.model;
-      const module = MuJoCoPhysicsEngine.getModule();
+      const module = PhysicsEngine.getModule();
       if (!module) {
         throw new Error('MuJoCoBodyManager: MuJoCo module not initialized');
       }
@@ -153,7 +153,7 @@ export class MuJoCoBodyManager {
 
     const world = this.physicsEngine.getWorld();
     const model = world.model;
-    const module = MuJoCoPhysicsEngine.getModule();
+    const module = PhysicsEngine.getModule();
     if (!module) return;
 
     const qpos = this.physicsEngine.qpos;
@@ -166,8 +166,8 @@ export class MuJoCoBodyManager {
       y: this.modelRoot.position.y + this.capsuleCenterY,
       z: this.modelRoot.position.z
     };
-    const capsulePosMj = MuJoCoPhysicsEngine.worldToMuJoCo(capsulePosThree);
-    const capsuleQuatMj = MuJoCoPhysicsEngine.threeQuatToMuJoCo(this.modelRoot.quaternion);
+    const capsulePosMj = PhysicsEngine.worldToMuJoCo(capsulePosThree);
+    const capsuleQuatMj = PhysicsEngine.threeQuatToMuJoCo(this.modelRoot.quaternion);
 
     const rootJntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, 'root_freejoint');
     if (rootJntId >= 0) {
@@ -207,7 +207,7 @@ export class MuJoCoBodyManager {
         // Connected to capsule root (identity orientation)
         const boneWorldQuat = new THREE.Quaternion();
         bone.getWorldQuaternion(boneWorldQuat);
-        const mjQuatArr = MuJoCoPhysicsEngine.threeQuatToMuJoCo(boneWorldQuat);
+        const mjQuatArr = PhysicsEngine.threeQuatToMuJoCo(boneWorldQuat);
         qRel = new THREE.Quaternion(mjQuatArr[1], mjQuatArr[2], mjQuatArr[3], mjQuatArr[0]);
       } else {
         // Connected to regular parent
@@ -218,8 +218,8 @@ export class MuJoCoBodyManager {
           parent.getWorldQuaternion(parentWorldQuat);
           bone.getWorldQuaternion(childWorldQuat);
 
-          const pQuatMjArr = MuJoCoPhysicsEngine.threeQuatToMuJoCo(parentWorldQuat);
-          const cQuatMjArr = MuJoCoPhysicsEngine.threeQuatToMuJoCo(childWorldQuat);
+          const pQuatMjArr = PhysicsEngine.threeQuatToMuJoCo(parentWorldQuat);
+          const cQuatMjArr = PhysicsEngine.threeQuatToMuJoCo(childWorldQuat);
 
           const qP = new THREE.Quaternion(pQuatMjArr[1], pQuatMjArr[2], pQuatMjArr[3], pQuatMjArr[0]);
           const qC = new THREE.Quaternion(cQuatMjArr[1], cQuatMjArr[2], cQuatMjArr[3], cQuatMjArr[0]);

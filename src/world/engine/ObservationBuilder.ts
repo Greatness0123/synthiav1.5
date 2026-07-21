@@ -1,6 +1,4 @@
 import * as THREE from 'three';
-import RAPIER from '@dimforge/rapier3d-compat';
-import { logger as Logger } from '../../utils/logger';
 
 export const VLM_KEY_JOINTS = [
   'pelvis', 'torso', 'neck', 'head',
@@ -40,7 +38,7 @@ const _tempEuler = new THREE.Euler();
 
 export class ObservationBuilder {
 
-  private jointBodies: Map<string, { body: RAPIER.RigidBody; parentBody: RAPIER.RigidBody | null }> = new Map();
+  private jointBodies: Map<string, { body: any; parentBody: any | null }> = new Map();
   private jointOrder: string[] = [];
   private groundHeight = 0;
 
@@ -56,8 +54,8 @@ export class ObservationBuilder {
 
   public registerJoint(
     name: string,
-    body: RAPIER.RigidBody,
-    parentBody: RAPIER.RigidBody | null
+    body: any,
+    parentBody: any | null
   ): void {
     this.jointBodies.set(name, { body, parentBody });
     this.jointOrder.push(name);
@@ -93,7 +91,7 @@ export class ObservationBuilder {
     return this.layout;
   }
 
-  public buildObservation(rootBody: RAPIER.RigidBody, dt: number): Float32Array {
+  public buildObservation(rootBody: any, dt: number): Float32Array {
     const layout = this.getLayout();
     const obs = new Float32Array(layout.totalSize);
 
@@ -152,8 +150,8 @@ export class ObservationBuilder {
   }
 
   private computeJointAngle(
-    body: RAPIER.RigidBody,
-    parentBody: RAPIER.RigidBody | null,
+    body: any,
+    parentBody: any | null,
     rootQuat: THREE.Quaternion
   ): number {
     const bodyRot = body.rotation();
@@ -175,7 +173,7 @@ export class ObservationBuilder {
     return _tempEuler.x;
   }
 
-  public buildVLMProprioception(rootBody: RAPIER.RigidBody): VLMProprioception {
+  public buildVLMProprioception(rootBody: any): VLMProprioception {
     const translation = rootBody.translation();
     const rotation = rootBody.rotation();
     const linvel = rootBody.linvel();
