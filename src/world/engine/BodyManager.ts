@@ -188,11 +188,10 @@ export class BodyManager {
 
     // 1. Position and orient the root capsule based on model root
     this.modelRoot.updateMatrixWorld(true);
-    const capsulePosThree = {
-      x: this.modelRoot.position.x,
-      y: this.modelRoot.position.y + this.capsuleCenterY,
-      z: this.modelRoot.position.z
-    };
+    const offsetLocal = new THREE.Vector3(0, this.capsuleCenterY, 0);
+    const offsetWorld = offsetLocal.clone().applyQuaternion(this.modelRoot.quaternion);
+    const capsulePosThree = new THREE.Vector3().copy(this.modelRoot.position).add(offsetWorld);
+
     const capsulePosMj = PhysicsEngine.worldToMuJoCo(capsulePosThree);
     const capsuleQuatMj = PhysicsEngine.threeQuatToMuJoCo(this.modelRoot.quaternion);
 

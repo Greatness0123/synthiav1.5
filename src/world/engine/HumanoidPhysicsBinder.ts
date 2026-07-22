@@ -721,8 +721,14 @@ export class HumanoidPhysicsBinder {
     const t = capsuleProxy.translation();
     const r = capsuleProxy.rotation();
 
-    this.modelRoot.position.set(t.x, t.y - this.capsuleCenterY, t.z);
-    this.modelRoot.quaternion.set(r.x, r.y, r.z, r.w);
+    const capsulePosition = new THREE.Vector3(t.x, t.y, t.z);
+    const capsuleQuaternion = new THREE.Quaternion(r.x, r.y, r.z, r.w);
+
+    const offsetLocal = new THREE.Vector3(0, this.capsuleCenterY, 0);
+    const offsetWorld = offsetLocal.clone().applyQuaternion(capsuleQuaternion);
+
+    this.modelRoot.position.copy(capsulePosition).sub(offsetWorld);
+    this.modelRoot.quaternion.copy(capsuleQuaternion);
 
     // 2. Perform downward ground raycasting using mj_ray (as verified in Step 1)
     const capsulePosMj = [
