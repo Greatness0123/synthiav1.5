@@ -4,6 +4,28 @@ import { COMPLETE_MIXAMO_PHYSICS_MATRIX } from '../../constants/physics';
 import SYNTHIA_RIG_CONSTRAINTS from '../../constants/rigConstraints';
 import { getAnatomicalLimitForBone } from '../../constants/anatomicalLimits';
 
+export const DEFAULT_STANCE_POSE: Record<string, number> = {
+  // Arms: lowered to side (75 degrees = 1.309 rad on pitch axis)
+  'act_mixamorigleftarm_pitch': 75 * Math.PI / 180,
+  'act_mixamorigrightarm_pitch': 75 * Math.PI / 180,
+
+  // Hips: slightly flexed (25 degrees = 0.436 rad on pitch axis)
+  'act_mixamorigleftupleg_pitch': 25 * Math.PI / 180,
+  'act_mixamorigrightupleg_pitch': 25 * Math.PI / 180,
+
+  // Hips: shoulder-width stance abduction (5 degrees = 0.087 rad on roll axis)
+  'act_mixamorigleftupleg_roll': 5 * Math.PI / 180,
+  'act_mixamorigrightupleg_roll': -5 * Math.PI / 180,
+
+  // Knees: slightly bent knee (-20 degrees = -0.349 rad on pitch axis)
+  'act_mixamorigleftleg_pitch': -20 * Math.PI / 180,
+  'act_mixamorigrightleg_pitch': -20 * Math.PI / 180,
+
+  // Ankles: dorsiflexion to keep foot flat (10 degrees = 0.175 rad on pitch axis)
+  'act_mixamorigleftfoot_pitch': 10 * Math.PI / 180,
+  'act_mixamorigrightfoot_pitch': 10 * Math.PI / 180,
+};
+
 // Define BONE_JOINT_TYPE
 type JointType = 'revolute' | 'spherical' | 'fixed';
 const BONE_JOINT_TYPE: Record<string, JointType> = {
