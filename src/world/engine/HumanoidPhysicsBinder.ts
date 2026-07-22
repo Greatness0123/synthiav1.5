@@ -21,7 +21,7 @@ export class BodyProxy {
   private model: any;
   private data: any;
 
-  constructor(bodyId: number, model: any, data: any, _module: any) {
+  constructor(bodyId: number, model: any, data: any) {
     this.bodyId = bodyId;
     this.model = model;
     this.data = data;
@@ -187,7 +187,7 @@ export class HumanoidPhysicsBinder {
 
         const cap = options?.activeGaitPhase && constraint.allowance?.locomotionCap ? constraint.allowance.locomotionCap : undefined;
 
-        let xVal = 0, yVal = 0, zVal = 0;
+        let xVal: number, yVal = 0, zVal = 0;
         if (isScalarPayload(rawVal)) {
           xVal = typeof rawVal === 'number' ? rawVal : rawVal[0];
         } else if (Array.isArray(rawVal) && rawVal.length === 3) {
@@ -652,13 +652,13 @@ export class HumanoidPhysicsBinder {
 
       for (const [boneName, bodyId] of bodyIds) {
         if (boneName === 'root_capsule') continue;
-        const proxy = new BodyProxy(bodyId, world.model, world.data, module);
+        const proxy = new BodyProxy(bodyId, world.model, world.data);
         rigidBodiesMap.set(boneName, proxy);
       }
 
       this.observationBuilder.clear();
       if (capsuleBodyId !== null && capsuleBodyId >= 0) {
-        const capsuleProxy = new BodyProxy(capsuleBodyId, world.model, world.data, module);
+        const capsuleProxy = new BodyProxy(capsuleBodyId, world.model, world.data);
         this.observationBuilder.registerJoint('capsule', capsuleProxy as any, null);
 
         for (const [boneName, proxy] of rigidBodiesMap) {
@@ -719,7 +719,7 @@ export class HumanoidPhysicsBinder {
     if (capsuleBodyId === null || capsuleBodyId < 0) return;
 
     // 1. Position and orient the Three.js model root using MuJoCo capsule body
-    const capsuleProxy = new BodyProxy(capsuleBodyId, model, data, module);
+    const capsuleProxy = new BodyProxy(capsuleBodyId, model, data);
     const t = capsuleProxy.translation();
     const r = capsuleProxy.rotation();
 
@@ -795,7 +795,7 @@ export class HumanoidPhysicsBinder {
       const proxiesMap = new Map<string, BodyProxy>();
       for (const [canonical, bodyId] of this.bodyManager.getRigidBodiesMap()) {
         if (canonical === 'root_capsule') continue;
-        proxiesMap.set(canonical, new BodyProxy(bodyId, model, data, module));
+        proxiesMap.set(canonical, new BodyProxy(bodyId, model, data));
       }
 
       this.avatarSynchronizer.synchronize(bonesSyncMap, proxiesMap as any);
@@ -898,10 +898,10 @@ export class HumanoidPhysicsBinder {
     if (this.mbActive) {
       const registry = this.physicsEngine.getContactForceRegistry();
       const footBones = ['mixamorigleftfoot', 'mixamorigrightfoot'];
-      let totalImpulse = new THREE.Vector3(0, 0, 0);
-      let totalTorque = new THREE.Vector3(0, 0, 0);
+      const totalImpulse = new THREE.Vector3(0, 0, 0);
+      const totalTorque = new THREE.Vector3(0, 0, 0);
 
-      const capsuleProxy = new BodyProxy(capsuleBodyId, model, data, null);
+      const capsuleProxy = new BodyProxy(capsuleBodyId, model, data);
       const capsulePos = capsuleProxy.translation();
       const modelQuat = this.modelRoot.quaternion.clone();
       const modelForward = new THREE.Vector3(0, 0, -1).applyQuaternion(modelQuat);
@@ -966,8 +966,8 @@ export class HumanoidPhysicsBinder {
 
     // Kinematic model foot positions reaction forces
     const feetNames = ['mixamoriglefttoebase', 'mixamorigrighttoebase'];
-    let totalImpulse = new THREE.Vector3(0, 0, 0);
-    let totalTorque = new THREE.Vector3(0, 0, 0);
+    const totalImpulse = new THREE.Vector3(0, 0, 0);
+    const totalTorque = new THREE.Vector3(0, 0, 0);
     const modelQuat = this.modelRoot.quaternion.clone();
 
     feetNames.forEach((boneName) => {
@@ -1006,7 +1006,7 @@ export class HumanoidPhysicsBinder {
                 grf.setLength(MAX_GRF_IMPULSE);
               }
 
-              const capsuleProxy = new BodyProxy(capsuleBodyId, model, data, null);
+              const capsuleProxy = new BodyProxy(capsuleBodyId, model, data);
               const capsulePos = capsuleProxy.translation();
               const offsetFromCenter = currentPos.x - capsulePos.x;
               const torqueY = -grf.z * offsetFromCenter * 5.0;
@@ -1120,7 +1120,7 @@ export class HumanoidPhysicsBinder {
     const capsuleBodyId = this.bodyManager.getCapsuleBody();
     if (capsuleBodyId !== null && capsuleBodyId >= 0) {
       const world = this.physicsEngine.getWorld();
-      const capsuleProxy = new BodyProxy(capsuleBodyId, world.model, world.data, null);
+      const capsuleProxy = new BodyProxy(capsuleBodyId, world.model, world.data);
       const pos = capsuleProxy.translation();
       const rot = capsuleProxy.rotation();
 
@@ -1193,7 +1193,7 @@ export class HumanoidPhysicsBinder {
     const state = registry.get(capsuleGeomId);
 
     if (state && state.inContact && state.impulse_magnitude > 0.01) {
-      let touching = 'unknown';
+      let touching: string;
       const ny = state.contact_normal[1];
       if (ny > 0.7) {
         touching = 'floor';
@@ -1393,7 +1393,7 @@ export class HumanoidPhysicsBinder {
           const parsedNumber = parseFloat(target);
           parsedTarget = { scalar: isNaN(parsedNumber) ? 0 : parsedNumber, isScalar: true };
         }
-      } catch (err) {
+      } catch {
         parsedTarget = { scalar: 0, isScalar: true };
       }
 
@@ -1541,7 +1541,7 @@ export class HumanoidPhysicsBinder {
     const capsuleBodyId = this.bodyManager.getCapsuleBody();
     if (capsuleBodyId === null || capsuleBodyId < 0) return null;
     const world = this.physicsEngine.getWorld();
-    return new BodyProxy(capsuleBodyId, world.model, world.data, PhysicsEngine.getModule());
+    return new BodyProxy(capsuleBodyId, world.model, world.data);
   }
 
   public getDiagnostics(): Record<string, any> {
@@ -1549,7 +1549,7 @@ export class HumanoidPhysicsBinder {
     let capsulePos = null;
     if (capsuleBodyId !== null && capsuleBodyId >= 0) {
       const world = this.physicsEngine.getWorld();
-      const proxy = new BodyProxy(capsuleBodyId, world.model, world.data, null);
+      const proxy = new BodyProxy(capsuleBodyId, world.model, world.data);
       const t = proxy.translation();
       capsulePos = [t.x.toFixed(3), t.y.toFixed(3), t.z.toFixed(3)];
     }

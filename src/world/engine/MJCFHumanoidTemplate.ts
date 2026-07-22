@@ -211,7 +211,7 @@ export function generateHumanoidMJCF(
     const iyy = phys.principalInertia.z;
     const izz = phys.principalInertia.y;
 
-    let geomXML = '';
+    let geomXML: string;
     const isFoot = boneName.includes('foot');
     if (isFoot) {
       // Foot box dimensions swap Y and Z
@@ -229,7 +229,7 @@ export function generateHumanoidMJCF(
     }
 
     // Joint declarations
-    let jointsXML = '';
+    let jointsXML: string;
     const jointType = BONE_JOINT_TYPE[boneName] || 'spherical';
 
     // Retrieve constraints and limits
