@@ -13,6 +13,12 @@ export class MotorController {
   private limpModeActive = false;
   private simulationStepCount = 0;
 
+  // Idle balance mode: holds a biomechanically stable standing stance when no AI commands arrive.
+  private idleModeActive = false;
+  private lastAiCommandStep = -9999;
+  // Timeout before idle re-engages after AI stops commanding (~2s at 60Hz = 120 steps).
+  private readonly IDLE_TIMEOUT_STEPS = 120;
+
   constructor() {}
 
   public init(actuatorMap: Map<string, number[]>, model: any, data: any): void {
@@ -32,12 +38,65 @@ export class MotorController {
     this.globalDampingScale = 1.0;
     this.limpModeActive = false;
     this.simulationStepCount = 0;
+    this.idleModeActive = false;
+    this.lastAiCommandStep = -9999;
 
     Logger.info(`MotorController: Initialized with ${model.nu} actuators.`);
   }
 
   public resetRamp(): void {
     this.simulationStepCount = 0;
+  }
+
+  public setIdleMode(active: boolean): void {
+    this.idleModeActive = active;
+    if (active) {
+      Logger.info('MotorController: Idle balance mode activated — holding standing stance.');
+    } else {
+      Logger.info('MotorController: Idle balance mode deactivated.');
+    }
+  }
+
+  public setAiCommand(): void {
+    this.lastAiCommandStep = this.simulationStepCount;
+    if (this.idleModeActive) {
+      this.idleModeActive = false;
+    }
+  }
+
+  private isIdleTimeout(): boolean {
+    return (this.simulationStepCount - this.lastAiCommandStep) > this.IDLE_TIMEOUT_STEPS;
+  }
+
+  /**
+   * Biomechanically stable standing stance.
+   * Bent knees, hips slightly forward, ankles dorsiflexed to keep COM over base of support.
+   * All values within rig constraints. Arms at restArmAngleDeg (75°).
+   */
+  private getIdleTargets(): Map<string, any> {
+    const targets = new Map<string, any>();
+
+    // Hips: slight forward flexion (-5.7°) shifts COM forward over feet
+    targets.set('mixamorigleftupleg', { x: -0.10, y: 0, z: 0, isQuaternion: false });
+    targets.set('mixamorigrightupleg', { x: -0.10, y: 0, z: 0, isQuaternion: false });
+
+    // Knees: micro-bend (-6.9°) prevents hyperextension instability
+    targets.set('mixamorigleftleg', { x: -0.12, isScalar: false });
+    targets.set('mixamorigrightleg', { x: -0.12, isScalar: false });
+
+    // Ankles: dorsiflexion (+5.7°) pulls shins forward, keeps COM centered
+    targets.set('mixamorigleftfoot', { x: 0.10, y: 0, z: 0, isQuaternion: false });
+    targets.set('mixamorigrightfoot', { x: 0.10, y: 0, z: 0, isQuaternion: false });
+
+    // Spine: very slight forward lean (-2.9°) to counterbalance hips
+    targets.set('mixamorigspine', { x: -0.05, y: 0, z: 0, isQuaternion: false });
+
+    // Arms: relaxed at sides (75° from T-pose = 1.309 rad)
+    const armAngle = 75 * (Math.PI / 180);
+    targets.set('mixamorigleftarm', { x: armAngle, y: 0, z: 0, isQuaternion: false });
+    targets.set('mixamorigrightarm', { x: armAngle, y: 0, z: 0, isQuaternion: false });
+
+    return targets;
   }
 
   public setTargets(currentTargets: Map<string, any>): void {
@@ -52,10 +111,20 @@ export class MotorController {
 
     if (this.limpModeActive) return;
 
+    // Re-engage idle stance when AI stops commanding
+    if (this.idleModeActive && this.isIdleTimeout()) {
+      // idle targets drive below
+    } else if (!this.idleModeActive && this.isIdleTimeout() && this.lastAiCommandStep >= 0) {
+      this.idleModeActive = true;
+    }
+
     const rampFactor = Math.min(1.0, this.simulationStepCount / 20);
     this.simulationStepCount++;
 
-    currentTargets.forEach((parsedTarget, boneName) => {
+    // Choose active target set: idle stance when idle, external targets when AI is commanding
+    const activeTargets = this.idleModeActive ? this.getIdleTargets() : currentTargets;
+
+    activeTargets.forEach((parsedTarget, boneName) => {
       const actuatorIds = this.actuatorMap.get(boneName);
       if (!actuatorIds || actuatorIds.length === 0) return;
 
@@ -122,6 +191,7 @@ export class MotorController {
         this.model.actuator_biasprm[i * 3 + 2] = 0;
         this.data.ctrl[i] = 0;
       }
+      this.idleModeActive = false;
       Logger.info('MotorController: Limp mode activated. All gains zeroed.');
     } else {
       // Restore standard scaled gains

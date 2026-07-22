@@ -681,6 +681,7 @@ export class HumanoidPhysicsBinder {
 
       this.observationBuilder.setGroundHeight(0);
       this.mbActive = true;
+      this.motorController.setIdleMode(true);
       Logger.info('HumanoidPhysicsBinderMuJoCo: Multi-body active');
       return true;
     } catch (error) {
@@ -692,6 +693,7 @@ export class HumanoidPhysicsBinder {
   public deactivateMultiBody(): void {
     this.observationBuilder.clear();
     this.avatarSynchronizer.clear();
+    this.motorController.setIdleMode(false);
     this.mbActive = false;
     Logger.info('HumanoidPhysicsBinderMuJoCo: Multi-body deactivated');
   }
@@ -1348,6 +1350,9 @@ export class HumanoidPhysicsBinder {
     if (this.buildStep !== 'D') {
       return { applied, rejected };
     }
+
+    // Signal idle mode that AI is commanding — overrides idle stance
+    this.motorController.setAiCommand();
 
     for (const [boneName, target] of Object.entries(targets)) {
       const aliasedName = this.resolveJointAlias(boneName.toLowerCase().replace(/:/g, ''));
