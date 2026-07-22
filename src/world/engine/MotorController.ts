@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { PhysicsEngine } from './PhysicsEngine';
+import { DEFAULT_STANCE_POSE } from './MJCFHumanoidTemplate';
 import { logger as Logger } from '../../utils/logger';
 
 export class MotorController {
@@ -7,6 +8,8 @@ export class MotorController {
   private data: any = null;
   private actuatorMap: Map<string, number[]> = new Map(); // boneName -> [actuatorIds]
   private baseGains: Map<number, { kp: number; kv: number }> = new Map(); // actuatorId -> gains
+  private resolvedStancePose: Map<number, number> = new Map(); // actuatorId -> stance target angle
+  private aiActionScale = 1.0;
 
   private globalStiffnessScale = 1.0;
   private globalDampingScale = 1.0;
@@ -28,6 +31,17 @@ export class MotorController {
       this.baseGains.set(i, { kp, kv });
     }
 
+    this.resolvedStancePose.clear();
+    const module = PhysicsEngine.getModule();
+    if (module && model) {
+      for (const [actName, val] of Object.entries(DEFAULT_STANCE_POSE)) {
+        const actId = module.mj_name2id(model, module.mjtObj.mjOBJ_ACTUATOR.value, actName);
+        if (actId >= 0) {
+          this.resolvedStancePose.set(actId, val);
+        }
+      }
+    }
+
     this.globalStiffnessScale = 1.0;
     this.globalDampingScale = 1.0;
     this.limpModeActive = false;
@@ -45,9 +59,9 @@ export class MotorController {
 
     const ctrl = this.data.ctrl;
 
-    // Reset all controls to 0 by default
+    // Start with the default stance pose for every actuator
     for (let i = 0; i < this.model.nu; i++) {
-      ctrl[i] = 0;
+      ctrl[i] = this.resolvedStancePose.get(i) || 0;
     }
 
     if (this.limpModeActive) return;
@@ -67,7 +81,8 @@ export class MotorController {
         } else if (parsedTarget.x !== undefined && typeof parsedTarget.x === 'number') {
           targetAngle = parsedTarget.x;
         }
-        ctrl[actuatorIds[0]] = targetAngle * rampFactor;
+        // Accumulate deviation on top of default stance pose
+        ctrl[actuatorIds[0]] += this.aiActionScale * targetAngle;
       } else if (actuatorIds.length === 3) {
         // Spherical joint decomposed into yaw, pitch, roll
         // Index 0: yaw, Index 1: pitch, Index 2: roll
@@ -83,11 +98,17 @@ export class MotorController {
           roll = parsedTarget.y || 0;
         }
 
-        ctrl[actuatorIds[0]] = yaw * rampFactor;
-        ctrl[actuatorIds[1]] = pitch * rampFactor;
-        ctrl[actuatorIds[2]] = roll * rampFactor;
+        // Accumulate deviations on top of default stance pose
+        ctrl[actuatorIds[0]] += this.aiActionScale * yaw;
+        ctrl[actuatorIds[1]] += this.aiActionScale * pitch;
+        ctrl[actuatorIds[2]] += this.aiActionScale * roll;
       }
     });
+
+    // Apply soft-start ramp factor to the final accumulated control signals
+    for (let i = 0; i < this.model.nu; i++) {
+      ctrl[i] *= rampFactor;
+    }
   }
 
   public setTargetAngle(boneName: string, angle: number): void {
@@ -96,8 +117,9 @@ export class MotorController {
     if (!actuatorIds || actuatorIds.length === 0) return;
 
     const rampFactor = Math.min(1.0, this.simulationStepCount / 20);
-    // Direct assignment to pitch or first actuator
-    this.data.ctrl[actuatorIds[0]] = angle * rampFactor;
+    const baseline = this.resolvedStancePose.get(actuatorIds[0]) || 0;
+    // Additive assignment with ramp factor
+    this.data.ctrl[actuatorIds[0]] = (baseline + this.aiActionScale * angle) * rampFactor;
   }
 
   public setGainScale(stiffnessScale: number, dampingScale: number): void {

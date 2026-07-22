@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PhysicsEngine } from './PhysicsEngine';
 import { BodyManager } from './BodyManager';
 import { MotorController } from './MotorController';
+import { DEFAULT_STANCE_POSE } from './MJCFHumanoidTemplate';
 import type { TimelineSequence, ValidateResult } from '../../types/joint';
 import { clampAngle, isScalarPayload, normalizeBoneKey } from '../../types/joint';
 import SYNTHIA_RIG_CONSTRAINTS from '../../constants/rigConstraints';
@@ -1106,6 +1107,12 @@ export class HumanoidPhysicsBinder {
       qpos[qposadr + 1] = capsulePosMj[1];
       qpos[qposadr + 2] = capsulePosMj[2];
 
+      // Reset freejoint quaternion to identity (scalar-first: w=1, x=0, y=0, z=0)
+      qpos[qposadr + 3] = 1.0;
+      qpos[qposadr + 4] = 0.0;
+      qpos[qposadr + 5] = 0.0;
+      qpos[qposadr + 6] = 0.0;
+
       for (let i = 0; i < 6; i++) {
         qvel[qveladr + i] = 0;
       }
@@ -1493,7 +1500,7 @@ export class HumanoidPhysicsBinder {
     const module = PhysicsEngine.getModule();
     if (!module) return;
 
-    // Reset all hinge qpos values to 0 (which maps perfectly to bind pose in our template!)
+    // Reset all hinge qpos values to their DEFAULT_STANCE_POSE values (with fallback to 0)
     const joints = this.bodyManager.getRigidBodiesMap();
     for (const [boneName] of joints) {
       const hasYaw = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_yaw') >= 0;
@@ -1502,24 +1509,23 @@ export class HumanoidPhysicsBinder {
 
       if (hasYaw) {
         const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_yaw');
-        qpos[model.jnt_qposadr[jntId]] = 0;
+        const actName = `act_${boneName}_yaw`;
+        qpos[model.jnt_qposadr[jntId]] = DEFAULT_STANCE_POSE[actName] || 0;
         qvel[model.jnt_dofadr[jntId]] = 0;
       }
       if (hasPitch) {
         const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_pitch');
-        qpos[model.jnt_qposadr[jntId]] = 0;
+        const actName = `act_${boneName}_pitch`;
+        qpos[model.jnt_qposadr[jntId]] = DEFAULT_STANCE_POSE[actName] || 0;
         qvel[model.jnt_dofadr[jntId]] = 0;
       }
       if (hasRoll) {
         const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_roll');
-        qpos[model.jnt_qposadr[jntId]] = 0;
+        const actName = `act_${boneName}_roll`;
+        qpos[model.jnt_qposadr[jntId]] = DEFAULT_STANCE_POSE[actName] || 0;
         qvel[model.jnt_dofadr[jntId]] = 0;
       }
     }
-
-    const armsDownAngle = this.restArmAngleDeg * (Math.PI / 180);
-    this.currentTargets.set('mixamorigrightarm', { x: armsDownAngle, y: 0, z: 0, isQuaternion: false });
-    this.currentTargets.set('mixamorigleftarm', { x: armsDownAngle, y: 0, z: 0, isQuaternion: false });
   }
 
   public async adjustMotors(stiffness: number, damping: number): Promise<boolean> {
