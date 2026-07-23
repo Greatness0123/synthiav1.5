@@ -379,7 +379,9 @@ ${pianoGeoms.join('\n')}
 
     <body name="root_capsule" pos="${rootCapsulePosStr}" quat="${rootCapsuleQuatStr}">
       <freejoint name="root_freejoint"/>
-      <geom name="root_capsule_geom" type="capsule" size="${capsuleRadius} ${capsuleHalfHeight}" pos="0 0 0" contype="2" conaffinity="1"/>
+      <!-- root_capsule_geom has contype="0" conaffinity="0" to completely disable contact/collision, avoiding overlap pushing with limbs -->
+      <!-- see src/constants/physics.ts: live scheme differs from original spec -->
+      <geom name="root_capsule_geom" type="capsule" size="${capsuleRadius} ${capsuleHalfHeight}" pos="0 0 0" contype="0" conaffinity="0"/>
       <!-- Wrapper body — most mass is in individual bone inertial tags; this is just the capsule shell -->
       <inertial pos="0 0 0" mass="5.0" diaginertia="0.5 0.5 0.5"/>
 
