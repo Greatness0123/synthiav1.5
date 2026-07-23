@@ -8,6 +8,27 @@ This document serves as the absolute engineering reference for the frontend inte
 
 The application implements a full-screen 3D immersive viewport overlayed with floatable, drag-enabled glassmorphism panels. This enables real-time visual inspection of physics interactions without blocking the user's focus.
 
+```
++─────────────────────────────────────────────────────────────+
+| [Synthia Pill]                      [3RD] [1ST] [2ND] (Cam) |
+|   (Top Left)                                    (Top Right) |
+|                                                             |
+|   +─────────────────────+             +─────────────────+   |
+|   |                     |             |                 |   |
+|   |    God Mode Panel   |             |   Agent Brain   |   |
+|   |    (Draggable)      |             |   Tab Panel     |   |
+|   |                     |             |   (Draggable)   |   |
+|   +─────────────────────+             +─────────────────+   |
+|                                                             |
+|                         [AI PiP View]                       |
+|                          (POV Overlay)                      |
+|                                                             |
+|                                                             |
+|                    [Status Metrics Pill]                    |
+|                       (Bottom Center)                       |
++─────────────────────────────────────────────────────────────+
+```
+
 ### 1.1 Canvas Viewport (`WorldViewport.tsx`)
 *   **Role**: Renders the complete WebGL Three.js context, including bipedal humanoid skeletal systems, world terrain, spawned rigid-body colliders, grids, sky configurations, and environmental elements.
 *   **Picture-in-Picture (PiP) Overlay (`ModelInputPiP.tsx`)**: Renders a dedicated real-time secondary visual buffer. It displays the biped's point-of-view camera (first-person) rendered at 448 x 448 pixels. It includes a frame-count overlay and connection latency indicators.
@@ -40,8 +61,8 @@ A multi-tab draggable panel tracking biped cognitive outputs.
 *   **Logs Tab**: System operation logs with success, warning, or error level alerts.
 
 ### 1.5 Dialog Modals (`ExportModal.tsx`, `RehydrationModal.tsx`)
-*   **Export Modal**: Enables CSV, LeRobot, and JSONL dataset packaging based on date, sessions, or heartbeats.
-*   **Rehydration Modal**: Locks input during scene reloads, displaying token-by-token text rehydration reviews.
+*   **Export Modal**: Enables CSV, LeRobot, and JSONL dataset packaging based on date, sessions, or heartbeats. It calculates projected sizes, handles format configurations, and enables targeted filtering.
+*   **Rehydration Modal**: Locks input during scene reloads, displaying token-by-token text rehydration reviews to the user.
 
 ---
 
@@ -76,21 +97,198 @@ The interface provides rich real-time control, mapped as follows:
 
 ---
 
-## 3. State Management (`worldStore` / `uiStore` / `agentStore` / `connectionStore`)
+## 3. State Store Slice Variables and Setter Actions
 
-State management uses **Zustand** to decouple UI, simulation logic, and WebSocket communication layers.
+The Zustand state layer is organized into decoupled stores to isolate UI modifications from high-frequency simulation ticks.
 
-The frontend is built around four central store modules:
-*   **World Store**: Maintains physical environment variables, rendering options, and biped characteristics. Saves settings to `localStorage` under `synthia_world_session` on changes.
-*   **UI Store**: Coordinates HUD overlays, tabs, panel drawers, and download progress states.
-*   **Agent Store**: Tracks incoming streaming data, goal parameters, and biped achievements.
-*   **Connection Store**: Manages WebSocket addresses, database configurations, and performance diagnostics.
+### 3.1 World Store Slices (`useWorldStore`)
+Focuses on physical simulation and environmental parameters. It automatically writes modified properties to the browser storage namespace `synthia_world_session` to persist environments.
+
+#### Complete Variable Manifest
+*   `objects` (Type: `WorldObject[]`): Catalog of spawned primitives and custom shapes within the active world space.
+*   `gravity` (Type: `number`): Core vertical gravity force ($Z$), defaults to $-9.81$.
+*   `globalFriction` (Type: `number`): Material surface friction coefficient, defaults to $0.5$.
+*   `bodyType` (Type: `BodyType`): Selected skeletal rig layout, standardizes to `'humanoid'`.
+*   `bodyMode` (Type: `BodyMode`): Control mode, toggling between `'rigid'` and `'ragdoll'`.
+*   `spawnPoint` (Type: `Vector3`): Base position used for pose resets and spawn point offsets.
+*   `cameraMode` (Type: `CameraMode`): Active camera perspective (`'third_person'`, `'first_person'`, `'model_input'`).
+*   `godModeOpen` (Type: `boolean`): Toggle for the God Mode panel overlay.
+*   `simplifiedSkeleton` (Type: `boolean`): Simplifies joint tracking during visual renders.
+*   `showDebugJoints` (Type: `boolean`): Joint marker visibility.
+*   `sessionName` (Type: `string`): Text descriptor representing the active recording session.
+*   `lightState` (Type: `'day' | 'night'`): Sun cycle state.
+*   `dayNightCycleMs` (Type: `number`): Environmental day-to-night transitions.
+*   `showFloor` (Type: `boolean`): Ground plane visibility state.
+*   `floorColor` (Type: `string`): Hexadecimal color code representing the ground mesh.
+*   `skyColor` (Type: `string`): Hexadecimal color code representing the sky background.
+*   `showGrid` (Type: `boolean`): Floor grid overlay display toggle.
+*   `showAICameraHelper` (Type: `boolean`): Projection cone visibility within the viewport.
+*   `showAIPiP` (Type: `boolean`): Point-of-view picture-in-picture window visibility.
+*   `showCapsuleDebug` (Type: `boolean`): Core bounding-capsule rendering state.
+*   `movementSmoothing` (Type: `number`): Interpolation rates for target-tracking.
+*   `useMultiBodyPD` (Type: `boolean`): Activates multi-body kinematic motor joints.
+*   `useProcedural` (Type: `boolean`): Activates procedural biped skeletons.
+*   `lastAIFrameForDisplay` (Type: `string | null`): Latest base64 point-of-view capture frame.
+*   `useMuJoCo` (Type: `boolean`): Activates the MuJoCo engine solver.
+
+#### Setter Actions
+*   `setUseMultiBodyPD(enable)`: Updates the joint mode and saves the session.
+*   `setUseProcedural(enable)`: Updates procedural skeleton states and saves the session.
+*   `setGravity(gravity)`: Sets gravity and saves the session.
+*   `setGlobalFriction(friction)`: Updates friction parameters across all materials.
+*   `setBodyType(type)`: standardizes layout to humanoid biped.
+*   `setBodyMode(mode)`: Swaps active physics strategy between rigid motors and ragdoll.
+*   `setSimplifiedSkeleton(simplified)`: Sets bone rendering complexity.
+*   `setShowDebugJoints(show)`: Toggles debug joint spheres.
+*   `setCameraMode(mode)`: Focuses rendering views.
+*   `setGodModeOpen(open)`: Toggles God Mode drawer.
+*   `setLightState(state)`: Updates sun state.
+*   `setDayNightCycleMs(ms)`: Sets light progression speeds.
+*   `setShowFloor(show)`: Sets floor rendering.
+*   `setFloorColor(color)`: Sets floor color.
+*   `setSkyColor(color)`: Updates sky color.
+*   `setShowGrid(show)`: Sets grid rendering.
+*   `setShowAICameraHelper(show)`: Toggles visual camera helpers.
+*   `setShowCapsuleDebug(show)`: Toggles capsule overlay.
+*   `setShowAIPiP(show)`: Sets PiP visibility.
+*   `setMovementSmoothing(speed)`: Sets interpolation rates.
+*   `setLastAIFrameForDisplay(frame)`: Caches base64 frames.
+*   `setUseMuJoCo(enable)`: Switches the physics engine solver.
+*   `addObject(obj)`: Adds a spawned shape.
+*   `removeObject(id)`: Removes a shape.
+*   `saveSession()`: Serializes core variables to `localStorage`.
+*   `loadSession()`: Restores serialized variables from local storage.
+
+---
+
+### 3.2 UI Store Slices (`useUIStore`)
+Coordinates HUD drawers, modal layers, and dataset generation progress states.
+
+#### Variable Manifest
+*   `activeRightPanelTab` (Type: `'thoughts' | 'memories' | 'structure' | 'logs'`): Visible sidebar tab.
+*   `rightPanelOpen` (Type: `boolean`): Right-hand panel drawer visibility state.
+*   `theme` (Type: `'dark' | 'light'`): General CSS color theme.
+*   `exportModalOpen` (Type: `boolean`): Export overlay state.
+*   `objectSpawnerOpen` (Type: `boolean`): Spawner overlay state.
+*   `rehydrationModalOpen` (Type: `boolean`): Rehydration overlay state.
+*   `exportProgress` (Type: `number`): Dataset generation progress ($0 \to 100$).
+*   `selectedEntityId` (Type: `string | null`): UUID of the selected 3D asset or bone.
+
+#### Actions
+*   `setActiveRightPanelTab(tab)`: Updates the visible sidebar tab.
+*   `setRightPanelOpen(open)`: Toggles sidebar drawer.
+*   `toggleTheme()`: Swaps system-wide theme modes.
+*   `setSelectedEntityId(id)`: Highlights and focuses on the selected item.
+*   `setExportModalOpen(open)`: Toggles the export view.
+*   `setObjectSpawnerOpen(open)`: Toggles the spawner overlay.
+*   `setRehydrationModalOpen(open)`: Toggles the rehydration lock.
+*   `setExportProgress(progress)`: Increments data generation percentages.
+
+---
+
+### 3.3 Agent Store Slices (`useAgentStore`)
+Manages the cognitive output layers, memory catalogs, and skills achieved by the agent.
+
+#### Variable Manifest
+*   `thoughts` (Type: `Thought[]`): Logged thoughts, containing unique ID, text content, heartbeat index, and injection status.
+*   `memories` (Type: `Memory[]`): Recorded memories, containing memory ID, heartbeat, tier index, summaries, actions taken, reward metrics, and goals.
+*   `skills` (Type: `string[]`): Full list of available skills.
+*   `currentRung` (Type: `number`): Level on the progression ladder.
+*   `currentGoal` (Type: `string | null`): Training objective specifications.
+*   `directiveMode` (Type: `DirectiveMode`): Mode selection (`'free_will'` / `'training'`).
+*   `heartbeat` (Type: `number`): Simulation clock tick.
+*   `status` (Type: `AgentStatus`): General biped status (idle, walking, falling).
+*   `pendingInjection` (Type: `string | null`): Injected text queued for processing.
+*   `currentThought` (Type: `string`): Real-time text buffer for the streaming thought.
+*   `rehydrationSummary` (Type: `string`): Streaming text buffer for rehydration summary.
+*   `hasRehydrated` (Type: `boolean`): Rehydration completion flag.
+*   `masteredSkills` (Type: `string[]`): Unlocked achievements.
+*   `injectionQueue` (Type: `string[]`): Queued custom directions.
+*   `injectionQueueCount` (Type: `number`): Size of the direction queue.
+
+#### Actions
+*   `addThought(thought)`: Appends an item to the thoughts log.
+*   `addMemory(memory)`: Logs a persistent memory entry.
+*   `setDirectiveMode(mode)`: Sets directive configurations.
+*   `setCurrentGoal(goal)`: Sets active training goals.
+*   `setPendingInjection(text)`: Caches directions for delivery.
+*   `setStatus(status)`: Sets body states.
+*   `setCurrentThought(text)`: Overwrites the thought buffer.
+*   `appendThoughtToken(token)`: Appends incoming characters to the thought stream.
+*   `setRehydrationSummary(text)`: Overwrites rehydration targets.
+*   `appendRehydrationToken(token)`: Appends characters to the rehydration stream.
+*   `setHasRehydrated(val)`: Sets rehydration state.
+*   `addMasteredSkill(skill)`: Appends unlocked achievements.
+*   `setInjectionQueue(queue)`: Overwrites the injection queue list.
+*   `setInjectionQueueCount(count)`: Sets queue sizes.
+*   `incrementInjectionQueueCount()`: Increments queue metrics.
+*   `decrementInjectionQueueCount()`: Decrements queue metrics.
+*   `setRung(rung)`: Updates biped progression levels.
+*   `incrementHeartbeat()`: Increments the clock ticks.
+*   `setHeartbeat(hb)`: Updates clock metrics.
+
+---
+
+### 3.4 Connection Store Slices (`useConnectionStore`)
+Configures addresses and credentials, tracking network and API performance.
+
+#### Variable Manifest
+*   `endpoint` (Type: `string`): Coordinator WebSocket address, defaults to `'ws://localhost:3001/ws'`.
+*   `inferenceEndpoint` (Type: `string`): API base address for the active LLM provider.
+*   `provider` (Type: `ProviderType`): Provider identifier (`'kaggle'`, `'gemini'`, `'groq'`, etc.).
+*   `providerModel` (Type: `string`): LLM model identifier.
+*   `providerApiKey` (Type: `string`): Secure API credentials (kept in memory, never persisted).
+*   `supabaseUrl` (Type: `string`): Database address.
+*   `supabaseKey` (Type: `string`): Secure database anon key.
+*   `status` (Type: `'disconnected' | 'connecting' | 'connected' | 'error'`): WS connection state.
+*   `rtt` (Type: `number`): Message round-trip latency in milliseconds.
+*   `inferenceTime` (Type: `number`): LLM processing latency in milliseconds.
+*   `frameSize` (Type: `number`): Transmitted perception frame size in Kilobytes.
+*   `fps` (Type: `number`): Client rendering frame-rate.
+*   `cycleMs` (Type: `number`): Polling interval for coordinator-client loops.
+
+#### Actions
+*   `setEndpoint(url)`: Caches target WS locations.
+*   `setInferenceEndpoint(url)`: Caches model processing targets.
+*   `setProvider(provider)`: Changes active ML providers.
+*   `setProviderModel(model)`: Changes model strings.
+*   `setProviderApiKey(key)`: Registers secure session keys.
+*   `setCycleMs(ms)`: Sets loop timing intervals.
+*   `setSupabaseConfig(url, key)`: Updates database configurations.
+*   `setStatus(status)`: Updates connection states.
+*   `setMetrics(metrics)`: Caches performance metrics.
 
 ---
 
 ## 4. State Synchronization Mechanics
 
 Synchronizing state between UI controls, Zustand data stores, the WebGL loop, and the 3D physics solver requires an event-driven architecture to keep rendering lightweight.
+
+```
+                  ┌──────────────────────┐
+                  │   UI Interaction /   │
+                  │   Zustand Action     │
+                  └──────────┬───────────┘
+                             │
+            ┌────────────────┴────────────────┐
+            ▼                                 ▼
+ ┌─────────────────────┐            ┌────────────────────┐
+ │  Local State Sync   │            │   Custom Events    │
+ │ (localStorage, etc) │            │   (Event Bus)      │
+ └─────────────────────┘            └─────────┬──────────┘
+                                              │
+                                              ▼
+                                    ┌────────────────────┐
+                                    │  Window Listeners  │
+                                    │    (useWorld.ts)   │
+                                    └─────────┬──────────┘
+                                              │
+                                              ▼
+                                    ┌────────────────────┐
+                                    │ Physics/3D Engine  │
+                                    │    Modification    │
+                                    └────────────────────┘
+```
 
 ### 4.1 UI to 3D Physics Engine (Downward Propagation)
 UI changes propagate to the physics engine via direct property bindings or custom DOM events:

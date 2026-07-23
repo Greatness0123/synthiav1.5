@@ -84,23 +84,27 @@ The repository uses a modular, decoupled architecture consisting of an interacti
 *   **Path**: `/kaggle_server.py`
 *   **Responsibility**: Deploys a mock/live FastAPI model server. Serves as the cloud-GPU endpoint for Qwen2.5-VL and LLaVA inference requests.
 *   **Enclosed Functions & Methods**:
-    *   `infer(payload: InferRequest) -> Response`: Takes image frames, system instructions, and historical context. Returns generated thoughts and action outputs. Supports mock generation to run tests without GPU acceleration.
-    *   `health() -> Status`: Verifies server status and returns hardware health metrics.
+    *   `infer`: Takes image frames, system instructions, and historical context. Returns generated thoughts and action outputs. Supports mock generation to run tests without GPU acceleration.
+        *   *Inputs*: JSON request payload conforming to `InferRequest`.
+        *   *Calculations*: Checks model configuration. If in mock mode, streams custom template thought strings and action schemas. If in GPU mode, runs the PyTorch tokenizer and generates visual language actions.
+        *   *Outputs*: Streams text responses containing thoughts and action structures.
+    *   `health`: Verifies server status and returns hardware health metrics.
+        *   *Inputs*: None.
+        *   *Calculations*: Inspects system load and GPU state metrics.
+        *   *Outputs*: JSON status block.
 
 ### `qwen2_vl.py`
 *   **Path**: `/qwen2_vl.py`
 *   **Responsibility**: Connects raw PyTorch model pipelines to local resources on GPU-enabled instances.
 *   **Enclosed Functions & Methods**:
-    *   `load_model() -> Pipeline`: Instantiates model weights and processors with low-precision optimization (bfloat16).
-    *   `generate(image: PIL.Image, prompt: str) -> str`: Decodes visual inputs, runs tokenizers, and returns model outputs.
-
-### `kaggle_original.py` & `kaggle_new.py`
-*   **Path**: `/kaggle_original.py` & `/kaggle_new.py`
-*   **Responsibility**: Legacy and utility variations for cloud deployments and testing API endpoint routing.
-
-### `console_walking.js`, `diagnostic_poses.js`, `test_joints.js`, `test_stability.js`
-*   **Path**: root directory utilities.
-*   **Responsibility**: Node CLI scripts for sending direct, frame-by-frame joint movements and training actions over raw WebSockets to verify the physics binder.
+    *   `load_model`: Instantiates model weights and processors with low-precision optimization (bfloat16).
+        *   *Inputs*: None.
+        *   *Calculations*: Loads Qwen2.5-VL weights using Hugging Face AutoClasses.
+        *   *Outputs*: Instantiated model and processor pipelines.
+    *   `generate`: Decodes visual inputs, runs tokenizers, and returns model outputs.
+        *   *Inputs*: Image file, text prompt string.
+        *   *Calculations*: Pre-processes image inputs, encodes text prompt tokens, and runs model auto-regressive generation.
+        *   *Outputs*: Generated text string.
 
 ---
 
@@ -201,7 +205,10 @@ Stores maintain application state variables and export action setters to modify 
 *   **Path**: `/src/constants/anatomicalLimits.ts`
 *   **Responsibility**: Limits range of motion (in radians) for bipedal limbs and defines world boundaries.
 *   **Enclosed Functions & Methods**:
-    *   `getAnatomicalLimitForBone(bone: string) -> Limit`: Retrieves joint range limits (minimum and maximum angles) for a given bone name.
+    *   `getAnatomicalLimitForBone`: Retrieves joint range limits (minimum and maximum angles) for a given bone name.
+        *   *Inputs*: Canonical bone name string.
+        *   *Calculations*: Inspects rig constraints for matching anatomical ranges.
+        *   *Outputs*: Limits structure containing minimum and maximum angles.
 
 #### `bodyTypes.ts`
 *   **Path**: `/src/constants/bodyTypes.ts`
@@ -231,96 +238,201 @@ Stores maintain application state variables and export action setters to modify 
 *   **Path**: `/src/world/contexts/CoordinatorContext.tsx`
 *   **Responsibility**: Establishes a persistent, auto-reconnecting WebSocket connection to the coordinator. It coordinates incoming actions, streams text thoughts, and parses memory handshakes.
 *   **Enclosed Functions & Methods**:
-    *   `normalizeWebSocketUrl(url: string) -> string`: Appends websocket transport protocols (e.g., `ws://`) to plain text URLs.
-    *   `sendMessage(type: string, data: object) -> void`: Serializes and transmits structured JSON packets to the coordinator.
+    *   `normalizeWebSocketUrl`: Appends websocket transport protocols (e.g., `ws://`) to plain text URLs.
+        *   *Inputs*: Raw address string.
+        *   *Calculations*: Regex matches transport patterns.
+        *   *Outputs*: Sanitized URL string.
+    *   `sendMessage`: Serializes and transmits structured JSON packets to the coordinator.
+        *   *Inputs*: Message identifier, payload data object.
+        *   *Calculations*: Transforms data objects into string formats.
+        *   *Outputs*: Dispatches network bytes.
 
 #### `useWorld.ts`
 *   **Path**: `/src/world/hooks/useWorld.ts`
 *   **Responsibility**: Hooks Three.js render loops to the biped physics solver. It handles background day/night cycle timers and updates client metrics.
 *   **Enclosed Functions & Methods**:
-    *   `captureWorldState() -> State`: Compiles joints, proprioceptive indicators, audio PCM buffers, contact arrays, and spawned objects into a single JSON payload.
-    *   `detectOutcomes() -> Outcome[]`: Scans state logs (e.g., body falls or piano hits) and returns active reward indicators.
-    *   `findSpawnPosition(skipCheck: boolean) -> Vector3`: Computes non-overlapping spawn coordinates for newly created elements.
+    *   `captureWorldState`: Compiles joints, proprioceptive indicators, audio PCM buffers, contact arrays, and spawned objects into a single JSON payload.
+        *   *Inputs*: None.
+        *   *Calculations*: Accumulates 3D coordinate transformations, grabs offscreen pixels, and serializes audio arrays.
+        *   *Outputs*: Complete state payload conforming to `InferPayload`.
+    *   `detectOutcomes`: Scans state logs (e.g., body falls or piano hits) and returns active reward indicators.
+        *   *Inputs*: None.
+        *   *Calculations*: Validates active contact logs and thresholds.
+        *   *Outputs*: Outcome metrics array.
+    *   `findSpawnPosition`: Computes non-overlapping spawn coordinates for newly created elements.
+        *   *Inputs*: None.
+        *   *Calculations*: Tests candidate positions in a spiral path relative to the character.
+        *   *Outputs*: Vector location.
 
 #### `WorldEngine.ts`
 *   **Path**: `/src/world/engine/WorldEngine.ts`
 *   **Responsibility**: Instantiates the WebGL renderer, cameras, ambient/directional lights, background colors, and world grids. Manages mouse clicks for gizmo drag selection.
 *   **Enclosed Functions & Methods**:
-    *   `start(onStep: function) -> void`: Begins the rendering loop and steps the physics solver at a fixed rate ($60\text{ Hz}$).
-    *   `updateLighting(state: day/night, progress: number) -> void`: Blends light colors and intensities during environment cycle transitions.
-    *   `spawnParticleBurst(position: Vector3) -> void`: Triggers brief visual particle explosions at collision coordinates.
+    *   `start`: Begins the rendering loop and steps the physics solver at a fixed rate ($60\text{ Hz}$).
+        *   *Inputs*: Callback trigger on physical solve.
+        *   *Calculations*: Accumulates time deltas, stepping the physics solver when thresholds are met.
+        *   *Outputs*: Frame updates.
+    *   `updateLighting`: Blends light colors and intensities during environment cycle transitions.
+        *   *Inputs*: Sunlight mode, progress value ($0 \to 1$).
+        *   *Calculations*: Linear interpolates ambient and directional light values.
+        *   *Outputs*: Modified lighting values.
+    *   `spawnParticleBurst`: Triggers brief visual particle explosions at collision coordinates.
+        *   *Inputs*: Vector coordinate.
+        *   *Calculations*: Builds a particle buffer around the coordinates and animates their ascent.
+        *   *Outputs*: Modifies the visible 3D scene.
 
 #### `PhysicsEngine.ts`
 *   **Path**: `/src/world/engine/PhysicsEngine.ts`
 *   **Responsibility**: Manages the MuJoCo WebAssembly compiler. It loads model files and drives physics stepping and contact resolution.
 *   **Enclosed Functions & Methods**:
-    *   `worldToMuJoCo(vector: Vector3) -> Array`: Converts Three.js coordinates ($X, Y, Z$) to MuJoCo coordinates ($X, -Z, Y$).
-    *   `mujocoToWorld(array: Array) -> Vector3`: Converts MuJoCo coordinates to Three.js coordinates.
-    *   `threeQuatToMuJoCo(quat: Quaternion) -> Array`: Converts Three.js quaternions to MuJoCo quaternions (scalar-first, conjugated by $90^\circ$ about $X$).
-    *   `mujocoQuatToThree(array: Array) -> Quaternion`: Converts scalar-first MuJoCo quaternions back to standard Three.js rotation vectors.
-    *   `ensureMuJoCoInitialized() -> Promise<Module>`: Pre-loads the Emscripten binary from absolute server paths.
-    *   `loadMJCFModel(xml: string) -> void`: Re-compiles MJCF model files and resets heap data pointers.
-    *   `step() -> void`: Executes a physics iteration, clamps velocities, and updates contact arrays.
-    *   `clampRegisteredBodyVelocities() -> void`: Standardizes and limits body movement velocities to prevent solver crashes.
-    *   `drainContactForceEventsInternal() -> void`: Queries contact forces via WebIDL double-buffers to update contact arrays.
+    *   `worldToMuJoCo`: Converts Three.js coordinates ($X, Y, Z$) to MuJoCo coordinates ($X, -Z, Y$).
+        *   *Inputs*: Three.js Vector3.
+        *   *Calculations*: Map coordinates: $Y \to Z, Z \to -Y$.
+        *   *Outputs*: MuJoCo coordinate array.
+    *   `mujocoToWorld`: Converts MuJoCo coordinates to Three.js coordinates.
+        *   *Inputs*: MuJoCo coordinate array.
+        *   *Calculations*: Map coordinates: $Z \to Y, -Y \to Z$.
+        *   *Outputs*: Three.js Vector3.
+    *   `threeQuatToMuJoCo`: Converts Three.js quaternions to MuJoCo quaternions (scalar-first, conjugated by $90^\circ$ about $X$).
+        *   *Inputs*: Three.js quaternion.
+        *   *Calculations*: Converts scale formats and conjugating offset vectors.
+        *   *Outputs*: MuJoCo scalar-first quaternion.
+    *   `mujocoQuatToThree`: Converts scalar-first MuJoCo quaternions back to standard Three.js rotation vectors.
+        *   *Inputs*: MuJoCo scalar-first quaternion array.
+        *   *Calculations*: Reverses conjugation and scale order formats.
+        *   *Outputs*: Three.js quaternion.
+    *   `ensureMuJoCoInitialized`: Pre-loads the Emscripten binary from absolute server paths.
+        *   *Inputs*: None.
+        *   *Calculations*: Resolves local or remote WASM binary locations and instantiates modules.
+        *   *Outputs*: Promise of initialized MainModule.
+    *   `loadMJCFModel`: Re-compiles MJCF model files and resets heap data pointers.
+        *   *Inputs*: XML config string.
+        *   *Calculations*: Writes XML strings to virtual file systems and loads them into solver configurations.
+        *   *Outputs*: Refreshes memory pointers.
+    *   `step`: Executes a physics iteration, clamps velocities, and updates contact arrays.
+        *   *Inputs*: None.
+        *   *Calculations*: Steps physics simulation heap, updates bounding values, and scans active collision nodes.
+        *   *Outputs*: Increments simulation clock.
+    *   `clampRegisteredBodyVelocities`: Standardizes and limits body movement velocities to prevent solver crashes.
+        *   *Inputs*: None.
+        *   *Calculations*: Inspects registered free-joint speed thresholds and scales velocity values if limits are exceeded.
+        *   *Outputs*: Modifies `qvel` values.
+    *   `drainContactForceEventsInternal`: Queries contact forces via WebIDL double-buffers to update contact arrays.
+        *   *Inputs*: None.
+        *   *Calculations*: Queries contact points in the active physics data structure, reads normal/tangential forces, and updates contacts.
+        *   *Outputs*: Contact force map.
 
 #### `BodyManager.ts`
 *   **Path**: `/src/world/engine/BodyManager.ts`
 *   **Responsibility**: Maps humanoid skeletal names to physical bodies, geoms, and actuator indexes. Updates target positions from current skeleton transforms.
 *   **Enclosed Functions & Methods**:
-    *   `activate(boneMap, skeleton, capsule, centerY, root) -> Promise<boolean>`: Generates MJCF files, compiles them, and indexes joints and bodies.
-    *   `syncRigidBodiesFromBones(boneMap) -> void`: Updates joint angles and root freejoint positions in `qpos` to match Three.js visual orientations.
+    *   `activate`: Generates MJCF files, compiles them, and indexes joints and bodies.
+        *   *Inputs*: Bone maps, joint structures, root models, vertical offsets.
+        *   *Calculations*: Generates XML structures, compiles them into solver configurations, and maps names to system IDs.
+        *   *Outputs*: Setup status.
+    *   `syncRigidBodiesFromBones`: Updates joint angles and root freejoint positions in `qpos` to match Three.js visual orientations.
+        *   *Inputs*: Bone transform map.
+        *   *Calculations*: Converts local bone rotations to Euler angles and maps them to respective joint positions in `qpos`.
+        *   *Outputs*: Modifies solver heap values.
 
 #### `MJCFHumanoidTemplate.ts`
 *   **Path**: `/src/world/engine/MJCFHumanoidTemplate.ts`
 *   **Responsibility**: Procedurally generates the core XML model file for the biped simulation, including body segments, flat sole geoms, actuators, environment slots, and the 88-key piano.
 *   **Enclosed Functions & Methods**:
-    *   `generateHumanoidMJCF(boneMap, skeleton, centerY) -> string`: Builds a comprehensive MJCF XML string based on visual skeleton coordinates, joint limits, and weight matrices.
+    *   `generateHumanoidMJCF`: Builds a comprehensive MJCF XML string based on visual skeleton coordinates, joint limits, and weight matrices.
+        *   *Inputs*: Bone transforms, parent mappings, weight configurations.
+        *   *Calculations*: Generates XML elements for bodies, joints, geoms, pre-allocated slots, and actuators.
+        *   *Outputs*: XML configuration string.
 
 #### `MotorController.ts`
 *   **Path**: `/src/world/engine/MotorController.ts`
 *   **Responsibility**: Converts joint targets to actuator values. It handles neutral stance holds (idle mode), target signal ramping, and capsule balance torques.
 *   **Enclosed Functions & Methods**:
-    *   `setTargets(targets: Map) -> void`: Computes and applies yaw, pitch, and roll actuator values to `ctrl` memory.
-    *   `applyGainsToModel() -> void`: Updates gain coefficients in the model heap.
-    *   `applyCapsuleBalance(bodyId: number) -> void`: Calculates stabilizing torques and applies them to the capsule's `xfrc_applied` array.
+    *   `setTargets`: Computes and applies yaw, pitch, and roll actuator values to `ctrl` memory.
+        *   *Inputs*: Joint target maps.
+        *   *Calculations*: Resolves joint structures, scales angles based on active ramping parameters, and updates `ctrl` elements.
+        *   *Outputs*: Modifies `ctrl` array.
+    *   `applyGainsToModel`: Updates gain coefficients in the model heap.
+        *   *Inputs*: None.
+        *   *Calculations*: Updates stiffness ($k_p$) and damping ($k_d$) parameters in the model structure.
+        *   *Outputs*: Modifies active configurations.
+    *   `applyCapsuleBalance`: Calculates stabilizing torques and applies them to the capsule's `xfrc_applied` array.
+        *   *Inputs*: Capsule body ID.
+        *   *Calculations*: Computes tilt angles, scales corrective feedback with PD coefficients, and writes them to the applied force array.
+        *   *Outputs*: Modifies forces.
 
 #### `ObjectManager.ts`
 *   **Path**: `/src/world/engine/ObjectManager.ts`
 *   **Responsibility**: Tracks spawned shapes and custom models. It maps 3D meshes to physics slots, updates positions, and triggers collision events.
 *   **Enclosed Functions & Methods**:
-    *   `reloadStateAndRehydrate(newMesh) -> void`: Captures active rigid body states, regenerates the XML, and re-hydrates the state back into the new model heap.
-    *   `spawnObject(presetId, position) -> Object`: Claims a pre-allocated environment slot and moves its physical representation to the target coordinates.
-    *   `spawnPiano(id, preset, position) -> Object`: Places the 88-key piano and maps collision IDs for note detection.
-    *   `deleteObject(id) -> void`: Undergrounds pre-allocated slots or removes custom meshes and triggers a model reload.
-    *   `syncVisuals() -> void`: Synchronizes Three.js mesh positions with active physics body coordinates.
-    *   `update() -> void`: Monitors contacts and triggers callbacks for interactive objects (piano keys, buttons).
+    *   `reloadStateAndRehydrate`: Captures active rigid body states, regenerates the XML, and re-hydrates the state back into the new model heap.
+        *   *Inputs*: New custom mesh configurations.
+        *   *Calculations*: Serializes active joint coordinates and velocities, appends new custom elements to the XML configuration, compiles, and restores state values.
+        *   *Outputs*: Reload status.
+    *   `spawnObject`: Claims a pre-allocated environment slot and moves its physical representation to the target coordinates.
+        *   *Inputs*: Preset shape identifier, vector location.
+        *   *Calculations*: Resolves empty slots, configures slot dimensions and material properties, and sets spawn coordinates.
+        *   *Outputs*: Created object structure.
+    *   `spawnPiano`: Places the 88-key piano and maps collision IDs for note detection.
+        *   *Inputs*: Piano ID, preset properties, spawn location.
+        *   *Calculations*: Positions key geoms in the world space and maps key colliders.
+        *   *Outputs*: Piano object structure.
+    *   `deleteObject`: Undergrounds pre-allocated slots or removes custom meshes and triggers a model reload.
+        *   *Inputs*: Object UUID.
+        *   *Calculations*: Clears collision parameters, moves geoms deep underground, and triggers model reloads if the mesh is custom.
+        *   *Outputs*: None.
+    *   `syncVisuals`: Synchronizes Three.js mesh positions with active physics body coordinates.
+        *   *Inputs*: None.
+        *   *Calculations*: Converts body translations and rotations from MuJoCo coordinates and updates Three.js mesh transforms.
+        *   *Outputs*: Synchronizes visualizations.
+    *   `update`: Monitors contacts and triggers callbacks for interactive objects (piano keys, buttons).
+        *   *Inputs*: None.
+        *   *Calculations*: Iterates over collision pairs, triggering audio feedback or material color updates when buttons or keys are pressed.
+        *   *Outputs*: Dispatches contact callbacks.
 
 #### `CameraManager.ts`
 *   **Path**: `/src/world/engine/CameraManager.ts`
 *   **Responsibility**: Manages the main user camera and the offscreen AI perception camera. Controls orbit and drag-and-drop transform gizmos.
 *   **Enclosed Functions & Methods**:
-    *   `update(headMatrix, targetPos, capsuleQuat, capsulePos) -> void`: Aligns cameras to look targets and positions the point-of-view camera.
-    *   `captureAIFrame(scene) -> string`: Renders offscreen views, flips vertical pixel buffers, and returns compressed base64 image strings.
+    *   `update`: Aligns cameras to look targets and positions the point-of-view camera.
+        *   *Inputs*: Head matrix transforms, target positions, capsule orientations.
+        *   *Calculations*: Positions cameras relative to the head coordinates and points them at target vectors.
+        *   *Outputs*: Updates camera matrices.
+    *   `captureAIFrame`: Renders offscreen views, flips vertical pixel buffers, and returns compressed base64 image strings.
+        *   *Inputs*: World scene.
+        *   *Calculations*: Renders scenes into render targets, reads color pixels into temporary arrays, flips buffers vertically, and encodes them as WebP format data.
+        *   *Outputs*: WebP base64 image string.
 
 #### `CollisionAdapter.ts`
 *   **Path**: `/src/world/engine/CollisionAdapter.ts`
 *   **Responsibility**: Helper class that extracts names and contact states for overlapping geoms.
 *   **Enclosed Functions & Methods**:
-    *   `getCollisionPairs(module, model, data) -> Pair[]`: Scans the active contact heap to build a list of colliding geom names and IDs.
+    *   `getCollisionPairs`: Scans the active contact heap to build a list of colliding geom names and IDs.
+        *   *Inputs*: MuJoCo MainModule, solver model, solver data.
+        *   *Calculations*: Queries active collision structures, looks up geom identifiers, and extracts body names.
+        *   *Outputs*: List of colliding pair structures.
 
 #### `ObservationBuilder.ts`
 *   **Path**: `/src/world/engine/ObservationBuilder.ts`
 *   **Responsibility**: Encodes joint positions, velocities, gravity vectors, and movement history into numeric arrays for AI perception.
 *   **Enclosed Functions & Methods**:
-    *   `buildVLMProprioception(rootBody) -> Proprioception`: Compiles biped positions, angles, velocities, and tracking vectors into structured formats.
+    *   `buildVLMProprioception`: Compiles biped positions, angles, velocities, and tracking vectors into structured formats.
+        *   *Inputs*: Root body proxy.
+        *   *Calculations*: Projects gravity vectors onto local coordinate frames, maps velocities, computes joint-to-parent offsets, and compiles history buffers.
+        *   *Outputs*: Proprioceptive data conforming to VLMProprioception schemas.
 
 #### `AudioEngine.ts`
 *   **Path**: `/src/world/engine/AudioEngine.ts`
 *   **Responsibility**: Handles polyphonic sound synthesis for piano note playback. Captures raw audio waveform data.
 *   **Enclosed Functions & Methods**:
-    *   `playNote(note: string) -> void`: Triggers MIDI instrument sounds.
-    *   `getBuffer() -> ArrayBuffer`: Retrieves captured audio waveforms as PCM bytes.
+    *   `playNote`: Triggers MIDI instrument sounds.
+        *   *Inputs*: Pitch descriptor (e.g. "C4").
+        *   *Calculations*: Updates polyphonic synth triggers.
+        *   *Outputs*: Synthesizes audio.
+    *   `getBuffer`: Retrieves captured audio waveforms as PCM bytes.
+        *   *Inputs*: None.
+        *   *Calculations*: Grabs frequency data from active analyzers.
+        *   *Outputs*: PCM wave buffer.
 
 ---
 
@@ -338,15 +450,36 @@ The coordinator server runs as a background process to coordinate biped decision
 *   **Path**: `/coordinator/src/agentLoop.ts`
 *   **Responsibility**: Drives the cognitive biped loop. It packages environment states, calls API drivers, and streams actions and thoughts back to the client.
 *   **Enclosed Functions & Methods**:
-    *   `runCycle() -> void`: Coordinates sensory capture, runs memory retrieval, calls models, and sends joint controls.
+    *   `runCycle`: Coordinates sensory capture, runs memory retrieval, calls models, and sends joint controls.
+        *   *Inputs*: Active world states.
+        *   *Calculations*: Queries database matrices, compiles prompt packages, dispatches requests to providers, and normalizes output actions.
+        *   *Outputs*: Directs biped controls.
+    *   `parseAndValidateAction`: Normalizes action strings returned by models into rad-friendly targets.
+        *   *Inputs*: Text action JSON string.
+        *   *Calculations*: Strips markdown syntax, parses JSON attributes, normalizes angles into radian units, and translates gaze vectors into head joint angles.
+        *   *Outputs*: Sanitized joint rotation target map.
+    *   `finalizeCycle`: Writes cognitive cycle details (including visual buffers, actions, and rewards) to active memory databases.
+        *   *Inputs*: Outcome descriptions, cycle identifiers.
+        *   *Calculations*: Packages visual image buffers, joints, thoughts, and actions into unified entries and writes them to database schemas.
+        *   *Outputs*: DB update status.
 
 #### `payloadBuilder.ts`
 *   **Path**: `/coordinator/src/payloadBuilder.ts`
 *   **Responsibility**: Compiles prompt templates, physical feedback, and visual inputs into structured JSON payloads for AI models.
+*   **Enclosed Functions & Methods**:
+    *   `build`: Compiles full payload objects including visual frames, audio PCM, joint states, memories, and user instructions.
+        *   *Inputs*: World state, agent ID, configuration options.
+        *   *Calculations*: Strips prefix tags from images, queries vector database matrices, and formats qualitative sensory summaries.
+        *   *Outputs*: Complete payload matching `InferPayload`.
 
 #### `memoryManager.ts`
 *   **Path**: `/coordinator/src/memoryManager.ts`
 *   **Responsibility**: Manages memory retrieval and persistence. Falls back to keyword-based in-memory structures if database configurations are missing.
+*   **Enclosed Functions & Methods**:
+    *   `retrieveRelevant`: Performs vector similarity queries against active database records.
+        *   *Inputs*: Target embedding array, agent ID, maximum count.
+        *   *Calculations*: Runs cosine-similarity queries over database collections. If database keys are missing, falls back to keyword matching over in-memory caches.
+        *   *Outputs*: Relevant memories array.
 
 #### `injectionQueue.ts`
 *   **Path**: `/coordinator/src/injectionQueue.ts`
@@ -380,7 +513,17 @@ Providers inherit from a standard base class and implement a common interface:
 #### `geminiProvider.ts`
 *   **Path**: `/coordinator/src/providers/geminiProvider.ts`
 *   **Responsibility**: Driver for Google's Gemini models. Formats multimodal inputs (images and text) and returns structured JSON actions.
+*   **Enclosed Functions & Methods**:
+    *   `infer`: Sends visual content and prompt strings to Gemini endpoints and processes streamed outputs.
+        *   *Inputs*: Sensory payload, token output stream callback.
+        *   *Calculations*: Encodes raw visual frames, structures system instructions, initiates connections to Gemini endpoints, parses Server-Sent Events (SSE), and isolates thoughts and action payloads.
+        *   *Outputs*: Cognitive result structure containing thoughts and actions.
 
 #### `openaiCompatProvider.ts`
 *   **Path**: `/coordinator/src/providers/openaiCompatProvider.ts`
 *   **Responsibility**: Standardized adapter for OpenAI-compatible APIs (NVIDIA NIM, Groq, OpenRouter).
+*   **Enclosed Functions & Methods**:
+    *   `infer`: Connects to OpenAI-compliant endpoints and handles token streams.
+        *   *Inputs*: Sensory payload, token output stream callback.
+        *   *Calculations*: Formats chat roles (system, user), attaches visual frames, initiates streaming requests, parses event buffers, and isolates thoughts and action JSON blocks.
+        *   *Outputs*: Cognitive result structure.

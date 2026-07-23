@@ -8,6 +8,37 @@ This document details the core domain knowledge, coordinate transforms, kinemati
 
 To accurately link 3D visual representations with stable physical solvers, the bipedal simulation maps standard Mixamo humanoid rigs to hierarchical joint configurations.
 
+```
+                  ┌──────────────────────┐
+                  │      worldbody       │
+                  └──────────┬───────────┘
+                             │
+                             ▼ (direct child)
+                  ┌──────────────────────┐
+                  │    root_capsule      │◄─── [Freejoint (6 DOF)]
+                  └─┬────────┬─────────┬─┘
+                    │        │         │
+     ┌──────────────┘        │         └──────────────┐
+     ▼                       ▼                        ▼
+┌──────────────┐     ┌──────────────┐          ┌──────────────┐
+│mixamorigspine│     │ left_upleg   │          │ right_upleg  │ [Yaw->Pitch->Roll]
+└──────┬───────┘     └──────┬───────┘          └──────┬───────┘
+       ▼                    ▼                         ▼
+ mixamorigspine1        left_leg (knee)          right_leg (knee) [Pitch Only]
+       ▼                    ▼                         ▼
+ mixamorigspine2        left_foot (ankle)        right_foot (ankle) [Yaw->Pitch->Roll]
+       │                                              │
+       ├────────────────────────┐                     │
+       ▼                        ▼                     ▼
+left_shoulder            right_shoulder          [Flat Box Soles]
+       ▼                        ▼
+   left_arm                 right_arm
+       ▼                        ▼
+ left_forearm (elbow)    right_forearm (elbow)
+       ▼                        ▼
+   left_hand                right_hand
+```
+
 ### 1.1 Root Capsule Placement
 *   **The Capsule Anchor**: The core physical body is a single vertically-oriented capsule named `root_capsule`.
 *   **Freejoint Constraint**: The capsule is placed directly under the world body element and assigned a freejoint element. This grants it full 6 DOF movement (unconstrained linear and angular motion).
@@ -75,25 +106,56 @@ High-mobility joints (like the hips, ankles, spine, and shoulders) are modeled a
     3.  **Roll** axis: Joint of type `hinge` along the axis `0 1 0`.
     All three joints have limits enabled and use biological ranges of motion.
 
-### 3.4 Actuator Specifications
-Joints are driven by position-controlled actuators using the `<position>` element:
-*   **Proportional-Derivative (PD) Servo Parameters**:
-    *   **Hips & Knees**: $k_p = 400, \, k_d = 80$. Provides high stiffness for bipedal standing.
-    *   **Spine**: $k_p = 300, \, k_d = 60$. Supports upright torso balance.
-    *   **Arms & Forearms**: $k_p = 200, \, k_d = 40$. Allows smooth reaching motion.
-    *   **Neck & Head**: $k_p = 150, \, k_d = 30$. Provides stable visual tracking.
-    *   **Ankles & Feet**: $k_p = 150, \, k_d = 40$. Supports balance adjustments.
+---
+
+## 4. Mechanical Joint Limits (Biological Ranges)
+
+All joint angles are limited to biologically accurate ranges to maintain humanoid realism:
+
+| Bone Identifier | Joint Type | DOF | Actuation Axes | Range limits (Degrees) | Range limits (Radians) |
+| :--- | :--- | :---: | :--- | :--- | :--- |
+| **mixamorigspine** | Spherical | 3 | Yaw, Pitch, Roll | $\pm 30^\circ$, $\pm 30^\circ$, $\pm 30^\circ$ | $\pm 0.523$, $\pm 0.523$, $\pm 0.523$ |
+| **mixamorigspine1** | Spherical | 3 | Yaw, Pitch, Roll | $\pm 15^\circ$, $\pm 15^\circ$, $\pm 15^\circ$ | $\pm 0.261$, $\pm 0.261$, $\pm 0.261$ |
+| **mixamorigspine2** | Spherical | 3 | Yaw, Pitch, Roll | $\pm 15^\circ$, $\pm 15^\circ$, $\pm 15^\circ$ | $\pm 0.261$, $\pm 0.261$, $\pm 0.261$ |
+| **mixamorigneck** | Spherical | 3 | Yaw, Pitch, Roll | $\pm 45^\circ$, $\pm 45^\circ$, $\pm 45^\circ$ | $\pm 0.785$, $\pm 0.785$, $\pm 0.785$ |
+| **mixamorighead** | Spherical | 3 | Yaw, Pitch, Roll | $\pm 45^\circ$, $\pm 45^\circ$, $\pm 45^\circ$ | $\pm 0.785$, $\pm 0.785$, $\pm 0.785$ |
+| **mixamorigleftarm** | Spherical | 3 | Yaw, Pitch, Roll | $\pm 180^\circ$, $\pm 90^\circ$, $\pm 90^\circ$ | $\pm 3.141$, $\pm 1.570$, $\pm 1.570$ |
+| **mixamorigrightarm** | Spherical | 3 | Yaw, Pitch, Roll | $\pm 180^\circ$, $\pm 90^\circ$, $\pm 90^\circ$ | $\pm 3.141$, $\pm 1.570$, $\pm 1.570$ |
+| **mixamorigleftforearm** | Revolute | 1 | Pitch (Elbow flex) | $0^\circ \to +145^\circ$ | $0.000 \to +2.530$ |
+| **mixamorigrightforearm** | Revolute | 1 | Pitch (Elbow flex) | $0^\circ \to +145^\circ$ | $0.000 \to +2.530$ |
+| **mixamorigleftupleg** | Spherical | 3 | Yaw, Pitch, Roll | $\pm 45^\circ$, $-120^\circ \to +45^\circ$, $\pm 45^\circ$ | $\pm 0.785$, $-2.094 \to +0.785$, $\pm 0.785$ |
+| **mixamorigrightupleg** | Spherical | 3 | Yaw, Pitch, Roll | $\pm 45^\circ$, $-120^\circ \to +45^\circ$, $\pm 45^\circ$ | $\pm 0.785$, $-2.094 \to +0.785$, $\pm 0.785$ |
+| **mixamorigleftleg** | Revolute | 1 | Pitch (Knee flex) | $-150^\circ \to 0^\circ$ | $-2.618 \to 0.000$ |
+| **mixamorigrightleg** | Revolute | 1 | Pitch (Knee flex) | $-150^\circ \to 0^\circ$ | $-2.618 \to 0.000$ |
+| **mixamorigleftfoot** | Spherical | 3 | Yaw, Pitch, Roll | $\pm 20^\circ$, $\pm 45^\circ$, $\pm 20^\circ$ | $\pm 0.349$, $\pm 0.785$, $\pm 0.349$ |
+| **mixamorigrightfoot** | Spherical | 3 | Yaw, Pitch, Roll | $\pm 20^\circ$, $\pm 45^\circ$, $\pm 20^\circ$ | $\pm 0.349$, $\pm 0.785$, $\pm 0.349$ |
+
+---
+
+## 5. Actuator PD Gains and Mechanical Parameters
+
+Joints are driven by position-controlled actuators using the `<position>` element. Explicit proportional ($k_p$) and derivative ($k_d$) gains are configured to optimize balance and control response:
+
+| Limb Category | Proportional Gain ($k_p$) | Derivative Gain ($k_d$) | Armature Inertia | Coulomb Joint Friction |
+| :--- | :---: | :---: | :---: | :---: |
+| **Hips & Knees** | $400.0$ | $80.0$ | $0.02$ | $0.1$ |
+| **Spine segments** | $300.0$ | $60.0$ | $0.00$ | $0.0$ |
+| **Arms & Elbows** | $200.0$ | $40.0$ | $0.00$ | $0.0$ |
+| **Ankles & Feet** | $150.0$ | $40.0$ | $0.01$ | $0.1$ |
+| **Neck & Head** | $150.0$ | $30.0$ | $0.00$ | $0.0$ |
+| **Hands & Fingers** | $5.0$ | $1.0$ | $0.00$ | $0.0$ |
+
 *   **Torque Limits and Gear Scaling**:
     *   `<position>` actuators in MuJoCo ignore the `gear` attribute for torque scaling. Torque limits must be set explicitly using the `forcerange` attribute on the actuator.
     *   Joint stabilization uses armature inertia (`armature` set to `0.02`) and Coulomb joint friction (`frictionloss` set to `0.1`) on leg joints to prevent high-frequency oscillations.
 
 ---
 
-## 4. Control Loop Mechanics
+## 6. Control Loop Mechanics
 
 The simulation runs a dual control loop that combines active balance torques with native joint actuator commands.
 
-### 4.1 Upright Balance Controller (`applyCapsuleBalance`)
+### 6.1 Upright Balance Controller (`applyCapsuleBalance`)
 Active balance is maintained by applying corrective torques directly to the root capsule body. Since free joints cannot host standard actuators, torques are written directly to the capsule's applied force array (`xfrc_applied`), which holds 6 elements corresponding to three force elements and three torque elements in world coordinates.
 
 1.  **Orientation Error Calculation**:
@@ -123,7 +185,7 @@ Active balance is maintained by applying corrective torques directly to the root
 
 ---
 
-### 4.2 Joint Target Updates & Soft-Start Mechanics
+### 6.2 Joint Target Updates & Soft-Start Mechanics
 To prevent extreme movements on startup or pose resets, control signals are scaled linearly over the first 20 simulation frames using a ramping factor ($\alpha$):
 
 $$\alpha = \min\left(1.0, \, \frac{n_{\text{step}}}{20}\right)$$
@@ -137,7 +199,7 @@ $$ctrl_i = \alpha \cdot \left(\theta_{\text{preset}} + \gamma \cdot \Delta\theta
 
 ---
 
-### 4.3 Kinematic Ground Reaction Forces (GRF)
+### 6.3 Kinematic Ground Reaction Forces (GRF)
 When operating in multi-body mode, contact forces at the feet are mapped to the root capsule's velocity arrays (`qvel`) to simulate realistic traction and friction:
 
 1.  **Contact Force Sampling**:

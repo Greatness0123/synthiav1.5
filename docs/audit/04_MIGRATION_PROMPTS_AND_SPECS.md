@@ -10,23 +10,23 @@ The development of the simulation progressed through five distinct, structured p
 
 ### Phase 1: Interactive Physics Sandbox
 *   **Objectives**: Set up a basic 3D simulation sandbox using Three.js and Vite. Establish basic environments (directional lighting, sky rendering, floor grid), spawn primitive shapes, and lay down the foundation for the physics loop.
-*   **Prompt Directives**: "Design a lightweight, responsive WebGL simulation workspace supporting standard orbital cameras, custom background themes, floor grids, and a basic rendering loop. Structure application state using Zustand for clean separation between UI components and 3D scenes."
+*   **Prompt Directives**: "Design a lightweight, responsive WebGL simulation workspace supporting standard orbital cameras, custom background themes, floor grids, and a basic rendering loop. Structure application state using Zustand for clean separation between UI components and 3D scenes. Build components that decouple visuals from ticking physics solvers."
 
 ### Phase 2: Bipedal Skeletal Rigging
 *   **Objectives**: Load the 3D humanoid mesh (`x-bot.glb`) and extract its bones. Map the visual rig to physical rigid bodies, establish coordinate transformations, and align visual bones with physics coordinates.
-*   **Prompt Directives**: "Load the Mixamo character rig. Traverse skeletal bones, index anatomical names, and map joint coordinates. Create a single core bounding volume representing the trunk, and align its position and orientation with the visual rig across coordinate frames."
+*   **Prompt Directives**: "Load the Mixamo character rig. Traverse skeletal bones, index anatomical names, and map joint coordinates. Create a single core bounding volume representing the trunk, and align its position and orientation with the visual rig across coordinate frames. Ensure rotations are converted cleanly using quaternion conjugate structures."
 
 ### Phase 3: Actuator Joint Servos
 *   **Objectives**: Implement Proportional-Derivative (PD) motor control loops. Standardize joint limits based on anatomical ranges of motion, handle target angle command sets, and implement a soft-start signal ramping mechanism.
-*   **Prompt Directives**: "Implement joint motor servos. Limit movements to biological ranges. Support joint targets (yaw, pitch, and roll) and implement a 20-frame soft-start signal ramping mechanism on startup to prevent joint snaps."
+*   **Prompt Directives**: "Implement joint motor servos. Limit movements to biological ranges. Support joint targets (yaw, pitch, and roll) and implement a 20-frame soft-start signal ramping mechanism on startup to prevent joint snaps. Map incoming controls gracefully and clamp excessive target joint velocities."
 
 ### Phase 4: Cognitive Handshakes
 *   **Objectives**: Build the client-coordinator communication loop. Set up WebSocket protocols to stream visual frames and proprioceptive state vectors to the backend, receive generated joint targets, and log streaming thoughts.
-*   **Prompt Directives**: "Establish a real-time, auto-reconnecting WebSocket connection. Capture offscreen AI perception frames ($448 \times 448$ pixels), package joint data and contact state vectors, and send them to the coordinator. Parse incoming cognitive decisions, extract joint targets, and render streamed thought characters in real time."
+*   **Prompt Directives**: "Establish a real-time, auto-reconnecting WebSocket connection. Capture offscreen AI perception frames ($448 \times 448$ pixels), package joint data and contact state vectors, and send them to the coordinator. Parse incoming cognitive decisions, extract joint targets, and render streamed thought characters in real time. Ensure the loop is robust against high latency spikes."
 
 ### Phase 5: Single-Engine Optimization & Interactive Elements
 *   **Objectives**: Replace legacy hybrid solvers with a single, optimized MuJoCo WebAssembly engine. Implement terrain collision handling, dynamic mesh uploads, interactive objects (buttons, 88-key piano), and audio waveform captures.
-*   **Prompt Directives**: "Remove legacy hybrid engine references and standardize on MuJoCo WebAssembly. Implement flat box foot soles to improve standing balance. procedurally compile MJCF models to support dynamic mesh spawning, incorporate an 88-key piano with audio feedback, and capture PCM waveforms."
+*   **Prompt Directives**: "Remove legacy hybrid engine references and standardize on MuJoCo WebAssembly. Implement flat box foot soles to improve standing balance. procedurally compile MJCF models to support dynamic mesh spawning, incorporate an 88-key piano with audio feedback, and capture PCM waveforms. Wrap memory access pointers safely to prevent Emscripten heap invalidations."
 
 ---
 
@@ -35,7 +35,7 @@ The development of the simulation progressed through five distinct, structured p
 During previous iterations, ten critical architectural traps were uncovered. This section details why they occurred and how the biped resolved them:
 
 ### Lesson 1: Single Physics Source of Truth (Rapier vs. MuJoCo)
-*   **The Trap**: Early versions used Rapier for world objects and MuJoCo for biped joint solving. This hybrid setup required complex, error-prone synchronization loops to handle collisions and contact forces between the two engines.
+*   **The Trap**: Early versions used Rapier for world objects and MuJoCo for biped joint solving. This hybrid setup required complex, error-prone synchronization loops to handle collisions and contact forces between the two engines, leading to desynchronizations and biped crashes.
 *   **The Solution**: Standardized on **MuJoCo WebAssembly** as the single physics engine. The entire scene—including the biped, spawned objects, and terrain—is procedurally compiled into a single MJCF XML model file, ensuring accurate collision resolution and stable contact solving.
 
 ### Lesson 2: Joint Target Ramping & Soft-Start
