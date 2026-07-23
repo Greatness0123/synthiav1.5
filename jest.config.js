@@ -8,7 +8,10 @@ export default {
     '**/src/world/engine/__tests__/CollisionAdapter.test.ts',
     '**/src/world/engine/__tests__/ObjectManager.test.ts',
     '**/src/world/engine/__tests__/TuningAndCalibration.test.ts',
-    '**/src/world/engine/__tests__/PhysicsIntegration.test.ts'
+    '**/src/world/engine/__tests__/PhysicsIntegration.test.ts',
+    '**/src/world/engine/__tests__/SpawnOverlapCheck_runner.test.ts',
+    '**/src/world/engine/__tests__/FootGroundDistanceStability.test.ts',
+    '**/src/world/engine/__tests__/LayingDownTests.test.ts'
   ],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', { useESM: true, tsconfig: { module: 'esnext', esModuleInterop: true, skipLibCheck: true, checkJs: false } }],

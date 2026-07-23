@@ -20,6 +20,10 @@ export const getCollisionMask = (membership: number, filter: number): number => 
 // ── MUJOCO COLLISION CONSTANTS ─────────────────────────────────────────
 // Bit 0 = Ragdoll
 // Bit 1 = Environment
+// NOTE: The live contype/conaffinity scheme here is limbs=2/1 and floor/environment=1/2 (bits 0 and 1).
+// This is inverted from the original Phase 4 spec (which proposed ragdoll=1/2, env=2/3) but is
+// internally consistent and actively used across the codebase.
+// Any future additions/modifications must copy these actual live values, not the old spec.
 export const RAGDOLL_CONTYPE = 1;      // Bit 0
 export const RAGDOLL_CONAFFINITY = 2;   // Bit 1 (collides with environment)
 

@@ -443,6 +443,7 @@ export class ObjectManager {
       model.geom_size[sizeOffset + 2] = sizeValues[2] || 0;
 
       // Enable collision parameters (ENVIRONMENT_CONTYPE = 2, ENVIRONMENT_CONAFFINITY = 3)
+      // see src/constants/physics.ts: live scheme differs from original spec
       model.geom_contype[geomId] = 2;
       model.geom_conaffinity[geomId] = 3;
 
