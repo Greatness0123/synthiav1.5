@@ -26,6 +26,7 @@ interface WorldState {
   showGrid: boolean;
   showAICameraHelper: boolean;
   showAIPiP: boolean;
+  showCapsuleDebug: boolean;
   movementSmoothing: number;
   useMultiBodyPD: boolean;
   useProcedural: boolean;
@@ -50,6 +51,7 @@ interface WorldState {
   setSkyColor: (color: string) => void;
   setShowGrid: (show: boolean) => void;
   setShowAICameraHelper: (show: boolean) => void;
+  setShowCapsuleDebug: (show: boolean) => void;
   setShowAIPiP: (show: boolean) => void;
   setMovementSmoothing: (speed: number) => void;
   setLastAIFrameForDisplay: (frame: string | null) => void;
@@ -82,6 +84,7 @@ export const useWorldStore = create<WorldState>((set, get) => ({
   showGrid: true,
   showAICameraHelper: false,
   showAIPiP: true,
+  showCapsuleDebug: false,
   movementSmoothing: 0.15,
   useMultiBodyPD: true,
   useProcedural: false,
@@ -148,6 +151,7 @@ export const useWorldStore = create<WorldState>((set, get) => ({
     set({ showAICameraHelper });
     get().saveSession();
   },
+  setShowCapsuleDebug: (showCapsuleDebug) => set({ showCapsuleDebug }),
   setShowAIPiP: (showAIPiP) => set({ showAIPiP }),
   setMovementSmoothing: (movementSmoothing) => {
     set({ movementSmoothing });

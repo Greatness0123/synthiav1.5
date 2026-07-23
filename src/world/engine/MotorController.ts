@@ -69,27 +69,32 @@ export class MotorController {
   }
 
   /**
-   * Biomechanically stable standing stance.
-   * Bent knees, hips slightly forward, ankles dorsiflexed to keep COM over base of support.
-   * All values within rig constraints. Arms at restArmAngleDeg (75°).
+   * Neutral standing stance — all leg joints at 0.0 rad (straight).
+   * This ensures feet are at their lowest possible position (eliminating the
+   * "hover" caused by bent-knee stance lifting the COM). Arms remain relaxed
+   * at the sides (restArmAngleDeg = 75° from T-pose).
+   *
+   * NOTE: Straight legs remove shock absorption and mechanical compliance.
+   * If hyperextension or step-transient instability appears, reintroduce
+   * micro-flexion (e.g., -0.05 rad at knees).
    */
   private getIdleTargets(): Map<string, any> {
     const targets = new Map<string, any>();
 
-    // Hips: slight forward flexion (-5.7°) shifts COM forward over feet
-    targets.set('mixamorigleftupleg', { x: -0.10, y: 0, z: 0, isQuaternion: false });
-    targets.set('mixamorigrightupleg', { x: -0.10, y: 0, z: 0, isQuaternion: false });
+    // Hips: straight (0.0 rad)
+    targets.set('mixamorigleftupleg', { x: 0.0, y: 0, z: 0, isQuaternion: false });
+    targets.set('mixamorigrightupleg', { x: 0.0, y: 0, z: 0, isQuaternion: false });
 
-    // Knees: micro-bend (-6.9°) prevents hyperextension instability
-    targets.set('mixamorigleftleg', { x: -0.12, isScalar: false });
-    targets.set('mixamorigrightleg', { x: -0.12, isScalar: false });
+    // Knees: straight (0.0 rad)
+    targets.set('mixamorigleftleg', { x: 0.0, isScalar: false });
+    targets.set('mixamorigrightleg', { x: 0.0, isScalar: false });
 
-    // Ankles: dorsiflexion (+5.7°) pulls shins forward, keeps COM centered
-    targets.set('mixamorigleftfoot', { x: 0.10, y: 0, z: 0, isQuaternion: false });
-    targets.set('mixamorigrightfoot', { x: 0.10, y: 0, z: 0, isQuaternion: false });
+    // Ankles: neutral (0.0 rad)
+    targets.set('mixamorigleftfoot', { x: 0.0, y: 0, z: 0, isQuaternion: false });
+    targets.set('mixamorigrightfoot', { x: 0.0, y: 0, z: 0, isQuaternion: false });
 
-    // Spine: very slight forward lean (-2.9°) to counterbalance hips
-    targets.set('mixamorigspine', { x: -0.05, y: 0, z: 0, isQuaternion: false });
+    // Spine: upright (0.0 rad)
+    targets.set('mixamorigspine', { x: 0.0, y: 0, z: 0, isQuaternion: false });
 
     // Arms: relaxed at sides (75° from T-pose = 1.309 rad)
     const armAngle = 75 * (Math.PI / 180);

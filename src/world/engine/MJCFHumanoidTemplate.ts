@@ -62,6 +62,23 @@ function getPhysicsParentName(bone: THREE.Bone, trackedBones: Set<string>): stri
   return null;
 }
 
+function getJointArmature(boneName: string): number {
+  const name = boneName.toLowerCase();
+  // Ankles: lower armature (smaller joint)
+  if (name.includes('foot')) return 0.01;
+  // Hips and knees: higher armature (larger joints)
+  if (name.includes('upleg') || name.includes('leg')) return 0.02;
+  // Default
+  return 0.0;
+}
+
+function getJointFrictionloss(boneName: string): number {
+  const name = boneName.toLowerCase();
+  // All leg joints get Coulomb friction to prevent micro-drift
+  if (name.includes('upleg') || name.includes('leg') || name.includes('foot')) return 0.1;
+  return 0.0;
+}
+
 function getMuJoCoBoneGains(boneName: string): { kp: number; kv: number } {
   const name = boneName.toLowerCase();
 
@@ -156,10 +173,13 @@ export function generateHumanoidMJCF(
     modelZ = hipsInfo.worldPosition.z;
   }
 
-  // Root capsule parameters matching Rapier values
+  // Root capsule parameters — reduced to avoid phantom floor contact
   const modelHeight = 1.8;
-  const capsuleRadius = 0.2;
-  const capsuleHalfHeight = Math.max(0.1, (modelHeight / 2) - capsuleRadius);
+  const capsuleRadius = 0.18;
+  // Use a torso-height capsule instead of full-body: 0.3 * modelHeight centers it
+  // around the pelvis/torso area, keeping the capsule bottom well above the floor
+  // so foot geoms handle ground contact instead.
+  const capsuleHalfHeight = Math.max(0.15, (modelHeight * 0.3) - capsuleRadius);
 
   const capsulePosThree = { x: modelX, y: capsuleCenterY, z: modelZ };
   const capsulePosMj = PhysicsEngine.worldToMuJoCo(capsulePosThree);
@@ -246,19 +266,25 @@ export function generateHumanoidMJCF(
     const kp = gains.kp;
     const kv = gains.kv;
 
+    // Armature and frictionloss for joint stabilization
+    const armature = getJointArmature(boneName);
+    const frictionloss = getJointFrictionloss(boneName);
+    const jointExtra = armature > 0 ? ` armature="${armature}"` : '';
+    const jointExtra2 = frictionloss > 0 ? ` frictionloss="${frictionloss}"` : '';
+
     if (jointType === 'revolute' || (constraint && constraint.dof === 1)) {
       // Single Hinge Joint (Pitch: axis 1 0 0)
       const min = constraint?.x?.[0] ?? limits?.min ?? -2.618;
       const max = constraint?.x?.[1] ?? limits?.max ?? 0;
-      jointsXML = `<joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(min, max)}" limited="true"/>`;
+      jointsXML = `<joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(min, max)}" limited="true"${jointExtra}${jointExtra2}/>`;
       actuators.push(`<position name="act_${boneName}_pitch" joint="${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(min, max)}"/>`);
     } else if (constraint && constraint.dof === 2) {
       // 2-DOF Joint Decomposed into Pitch (1 0 0) and Roll (0 1 0)
       const minX = constraint.x[0], maxX = constraint.x[1];
       const minZ = constraint.z[0], maxZ = constraint.z[1];
       jointsXML = `
-        <joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(minX, maxX)}" limited="true"/>
-        <joint name="${boneName}_roll" type="hinge" axis="0 1 0" range="${getSafeRangeStr(minZ, maxZ)}" limited="true"/>
+        <joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(minX, maxX)}" limited="true"${jointExtra}${jointExtra2}/>
+        <joint name="${boneName}_roll" type="hinge" axis="0 1 0" range="${getSafeRangeStr(minZ, maxZ)}" limited="true"${jointExtra}${jointExtra2}/>
       `;
       actuators.push(`<position name="act_${boneName}_pitch" joint="${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minX, maxX)}"/>`);
       actuators.push(`<position name="act_${boneName}_roll" joint="${boneName}_roll" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minZ, maxZ)}"/>`);
@@ -271,9 +297,9 @@ export function generateHumanoidMJCF(
       const minZ = constraint?.z?.[0] ?? -0.785;
       const maxZ = constraint?.z?.[1] ?? 0.785;
       jointsXML = `
-        <joint name="${boneName}_yaw" type="hinge" axis="0 0 1" range="${getSafeRangeStr(minY, maxY)}" limited="true"/>
-        <joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(minX, maxX)}" limited="true"/>
-        <joint name="${boneName}_roll" type="hinge" axis="0 1 0" range="${getSafeRangeStr(minZ, maxZ)}" limited="true"/>
+        <joint name="${boneName}_yaw" type="hinge" axis="0 0 1" range="${getSafeRangeStr(minY, maxY)}" limited="true"${jointExtra}${jointExtra2}/>
+        <joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(minX, maxX)}" limited="true"${jointExtra}${jointExtra2}/>
+        <joint name="${boneName}_roll" type="hinge" axis="0 1 0" range="${getSafeRangeStr(minZ, maxZ)}" limited="true"${jointExtra}${jointExtra2}/>
       `;
       actuators.push(`<position name="act_${boneName}_yaw" joint="${boneName}_yaw" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minY, maxY)}"/>`);
       actuators.push(`<position name="act_${boneName}_pitch" joint="${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minX, maxX)}"/>`);
@@ -354,7 +380,8 @@ ${pianoGeoms.join('\n')}
     <body name="root_capsule" pos="${rootCapsulePosStr}" quat="${rootCapsuleQuatStr}">
       <freejoint name="root_freejoint"/>
       <geom name="root_capsule_geom" type="capsule" size="${capsuleRadius} ${capsuleHalfHeight}" pos="0 0 0" contype="2" conaffinity="1"/>
-      <inertial pos="0 0 0" mass="70" diaginertia="10.0 10.0 10.0"/>
+      <!-- Wrapper body — most mass is in individual bone inertial tags; this is just the capsule shell -->
+      <inertial pos="0 0 0" mass="5.0" diaginertia="0.5 0.5 0.5"/>
 
       ${spineBranch}
       ${leftLegBranch}

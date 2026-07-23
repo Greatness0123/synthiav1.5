@@ -23,6 +23,8 @@ export const BodyControls: React.FC = () => {
     setShowAICameraHelper,
     showAIPiP,
     setShowAIPiP,
+    showCapsuleDebug,
+    setShowCapsuleDebug,
     movementSmoothing,
     setMovementSmoothing,
     useMultiBodyPD,
@@ -98,6 +100,16 @@ export const BodyControls: React.FC = () => {
             className={`w-8 h-4 rounded-full transition-colors relative ${showDebugJoints ? 'bg-accent-blue' : 'bg-bg-elevated'}`}
           >
             <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showDebugJoints ? 'left-[18px]' : 'left-0.5'}`} />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between py-1">
+          <label className="text-[10px] uppercase tracking-wider text-text-tertiary">Show Capsule Collider</label>
+          <button
+            onClick={() => setShowCapsuleDebug(!showCapsuleDebug)}
+            className={`w-8 h-4 rounded-full transition-colors relative ${showCapsuleDebug ? 'bg-accent-blue' : 'bg-bg-elevated'}`}
+          >
+            <div className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${showCapsuleDebug ? 'left-[18px]' : 'left-0.5'}`} />
           </button>
         </div>
 

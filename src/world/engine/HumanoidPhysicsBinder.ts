@@ -94,6 +94,8 @@ export class HumanoidPhysicsBinder {
   private boneInfoMap: Map<string, BoneInfo> = new Map();
   private bindPoseQuaternions: Map<string, THREE.Quaternion> = new Map();
   private debugSpheres: Map<string, THREE.Mesh> = new Map();
+  private capsuleDebugMesh: THREE.Mesh | null = null;
+  private capsuleDebugActive: boolean = false;
   private cameraHelpers: THREE.Group[] = [];
   private isLoaded: boolean = false;
 
@@ -731,6 +733,36 @@ export class HumanoidPhysicsBinder {
 
     this.modelRoot.position.copy(capsulePosition).sub(offsetWorld);
     this.modelRoot.quaternion.copy(capsuleQuaternion);
+
+    // Capsule debug visualization (follows MuJoCo capsule body world position/rotation)
+    {
+      const showCapsule = this.capsuleDebugActive;
+      if (showCapsule && !this.capsuleDebugMesh) {
+        const capsuleGeo = new THREE.CapsuleGeometry(this.capsuleRadius, this.capsuleCenterY * 2 - this.capsuleRadius * 2, 8, 16);
+        const capsuleMat = new THREE.MeshBasicMaterial({
+          color: 0xff4444,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.5,
+          depthTest: true,
+        });
+        this.capsuleDebugMesh = new THREE.Mesh(capsuleGeo, capsuleMat);
+        this.capsuleDebugMesh.renderOrder = 999;
+        this.scene.add(this.capsuleDebugMesh);
+      } else if (!showCapsule && this.capsuleDebugMesh) {
+        this.scene.remove(this.capsuleDebugMesh);
+        this.capsuleDebugMesh.geometry.dispose();
+        (this.capsuleDebugMesh.material as THREE.Material).dispose();
+        this.capsuleDebugMesh = null;
+      }
+
+      if (this.capsuleDebugMesh) {
+        // Align the debug mesh to the capsule body's world position/rotation.
+        // capsulePosition and capsuleQuaternion are already computed above.
+        this.capsuleDebugMesh.position.copy(capsulePosition);
+        this.capsuleDebugMesh.quaternion.copy(capsuleQuaternion);
+      }
+    }
 
     // 2. Perform downward ground raycasting using mj_ray (as verified in Step 1)
     const capsulePosMj = [

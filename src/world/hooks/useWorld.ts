@@ -238,6 +238,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       worldEngineRef.current?.stop();
       physicsEngineRef.current?.cleanup();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containerRef]);
 
   useEffect(() => {
@@ -267,6 +268,12 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       humanoidPhysicsBinderRef.current.renderDebugSpheres(worldStore.showDebugJoints);
     }
   }, [worldStore.showDebugJoints]);
+
+  useEffect(() => {
+    if (humanoidPhysicsBinderRef.current) {
+      humanoidPhysicsBinderRef.current['capsuleDebugActive'] = worldStore.showCapsuleDebug;
+    }
+  }, [worldStore.showCapsuleDebug]);
 
   useEffect(() => {
     if (worldStore.bodyType === 'humanoid') {
@@ -327,7 +334,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [worldStore.cameraMode]);
 
   const findSpawnPosition = useCallback((skipHumanoidCheck = false): THREE.Vector3 => {
-    let humanoidPos = new THREE.Vector3(0, 0, 5);
+    const humanoidPos = new THREE.Vector3(0, 0, 5);
     const binder = humanoidPhysicsBinderRef.current;
     if (binder) {
       const headTransform = binder.getHeadTransform();
@@ -338,7 +345,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
 
     const activeObjManager = objectManagerRef.current;
     const spawnRadius = 2.2;
-    let spawnPos = new THREE.Vector3();
+    const spawnPos = new THREE.Vector3();
     let placed = false;
 
     for (let attempt = 0; attempt < 8; attempt++) {
@@ -584,6 +591,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
     };
 
     build();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isReady,
     worldStore.bodyType,
@@ -600,6 +608,7 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
     }, worldStore.dayNightCycleMs);
 
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isReady, worldStore.dayNightCycleMs, worldStore.lightState]);
 
   useEffect(() => {
