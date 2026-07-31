@@ -46,9 +46,11 @@ export const createDefaultAgentState = (): SingleAgentState => ({
 interface AgentStoreState extends SingleAgentState {
   agents: Record<string, SingleAgentState>;
   activeAgentId: string;
+  activeViewAgentId: string;
 
   // Multi-agent Actions
   setActiveAgentId: (id: string) => void;
+  setActiveViewAgentId: (id: string) => void;
   addAgent: (id: string, initialState?: Partial<SingleAgentState>) => void;
   removeAgent: (id: string) => void;
   updateAgentState: (id: string, partial: Partial<SingleAgentState>) => void;
@@ -131,10 +133,20 @@ export const useAgentStore = create<AgentStoreState>((set, get) => {
     ...initialDefault,
     agents: defaultAgents,
     activeAgentId: 'agent_0',
+    activeViewAgentId: 'agent_0',
 
     setActiveAgentId: (id) => set((state) => {
       const activeState = state.agents[id] || createDefaultAgentState();
       return {
+        activeAgentId: id,
+        ...activeState,
+      };
+    }),
+
+    setActiveViewAgentId: (id) => set((state) => {
+      const activeState = state.agents[id] || createDefaultAgentState();
+      return {
+        activeViewAgentId: id,
         activeAgentId: id,
         ...activeState,
       };
@@ -165,6 +177,7 @@ export const useAgentStore = create<AgentStoreState>((set, get) => {
       return {
         agents: updatedAgents,
         activeAgentId: nextActiveId,
+        activeViewAgentId: nextActiveId,
         ...activeState,
       };
     }),

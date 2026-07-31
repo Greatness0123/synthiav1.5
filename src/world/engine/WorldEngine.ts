@@ -3,6 +3,7 @@ import { PhysicsEngine } from './PhysicsEngine';
 import { CameraManager } from './CameraManager';
 import { useUIStore } from '../../store/uiStore';
 import { useWorldStore } from '../../store/worldStore';
+import { useAgentStore } from '../../store/agentStore';
 import { logger as Logger } from '../../utils/logger';
 
 export class WorldEngine {
@@ -31,6 +32,7 @@ export class WorldEngine {
 
   private lastAIFrame: string = '';
   private lastPipUpdateTime = 0;
+  private lastViewedAgentId: string = 'agent_0';
 
   constructor(container: HTMLElement, physicsEngine: PhysicsEngine) {
     this.container = container;
@@ -243,11 +245,18 @@ export class WorldEngine {
       }
 
       try {
+        const activeViewAgentId = useAgentStore.getState().activeViewAgentId || 'agent_0';
+        const agentChanged = this.lastViewedAgentId !== activeViewAgentId;
+        if (agentChanged) {
+          this.lastViewedAgentId = activeViewAgentId;
+          this.lastPipUpdateTime = 0; // Force immediate PiP update to avoid stale frame
+        }
+
         const frameBase64 = this.cameraManager.captureAIFrame(this.scene);
         if (frameBase64) {
           this.lastAIFrame = frameBase64;
           const now = performance.now();
-          if (now - this.lastPipUpdateTime > 200) {
+          if (now - this.lastPipUpdateTime > 200 || agentChanged) {
             useWorldStore.getState().setLastAIFrameForDisplay(frameBase64);
             this.lastPipUpdateTime = now;
           }

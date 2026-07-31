@@ -22,6 +22,9 @@ export class CameraManager {
 
   private static readonly AI_VIEW_SIZE = 448;
 
+  private lastViewedAgentId: string = '';
+  private needsChaseSnap: boolean = true;
+
   public onDragEnd?: (object: THREE.Object3D) => void;
   public onDragChanged?: (dragging: boolean, object: THREE.Object3D | null) => void;
 
@@ -74,9 +77,31 @@ export class CameraManager {
     });
   }
 
-  public update(headMatrix?: THREE.Matrix4, targetPos?: THREE.Vector3, _capsuleQuat?: THREE.Quaternion, capsulePos?: THREE.Vector3): void {
+  public setViewingAgent(agentId: string, position?: THREE.Vector3): void {
+    const isNewAgent = this.lastViewedAgentId !== agentId;
+    this.lastViewedAgentId = agentId;
+
+    if (isNewAgent) {
+      this.needsChaseSnap = true;
+    }
+
+    if (position && (isNewAgent || this.mode === 'third_person')) {
+      if (Number.isFinite(position.x) && Number.isFinite(position.y) && Number.isFinite(position.z)) {
+        // Snap the orbit controls target to the agent position once
+        this.controls.target.copy(position);
+
+        // Position third person camera to keep viewing the agent nicely
+        const offset = new THREE.Vector3(5, 2, 5);
+        this.thirdPersonCamera.position.copy(position).add(offset);
+        this.controls.update();
+      }
+    }
+  }
+
+  public update(headMatrix?: THREE.Matrix4, targetPos?: THREE.Vector3, capsuleQuat?: THREE.Quaternion, capsulePos?: THREE.Vector3): void {
     const isValidVector = (v: THREE.Vector3) => Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
 
+    // Decompose headMatrix and copy to aiPerceptionCamera always if present, so AI offscreen vision is correct
     if (headMatrix) {
       const headPos = new THREE.Vector3();
       const headQuat = new THREE.Quaternion();
@@ -84,50 +109,65 @@ export class CameraManager {
       headMatrix.decompose(headPos, headQuat, headScale);
 
       if (isValidVector(headPos)) {
-
         this.aiPerceptionCamera.position.copy(headPos);
         this.aiPerceptionCamera.quaternion.copy(headQuat);
         this.aiPerceptionCamera.up.set(0, 1, 0);
       }
-
-      let effectiveLookTarget = capsulePos;
-      if (!effectiveLookTarget || !isValidVector(effectiveLookTarget)) {
-
-        if (headMatrix) {
-          const hPos = new THREE.Vector3();
-          const hQuat = new THREE.Quaternion();
-          const hScale = new THREE.Vector3();
-          headMatrix.decompose(hPos, hQuat, hScale);
-          effectiveLookTarget = hPos;
-        }
-      }
-
-      if (effectiveLookTarget && isValidVector(effectiveLookTarget)) {
-
-        this.chaseCam.position.copy(this.chaseCamOrigin);
-
-        this.chaseCam.up.set(0, 1, 0);
-        this.chaseCam.lookAt(effectiveLookTarget.x, effectiveLookTarget.y - 0.5, effectiveLookTarget.z);
-      }
-
     } else if (targetPos) {
-
       this.aiPerceptionCamera.position.set(targetPos.x, targetPos.y + 0.8, targetPos.z + 1.5);
       this.aiPerceptionCamera.lookAt(targetPos);
     } else {
-
       if (this.aiPerceptionCamera.position.length() < 0.1) {
         this.aiPerceptionCamera.position.set(0, 1.8, 0.5);
         this.aiPerceptionCamera.lookAt(0, 1.0, 10);
       }
     }
 
-    if (this.mode === 'third_person') {
-      if (targetPos) {
-        if (isFinite(targetPos.x) && isFinite(targetPos.y) && isFinite(targetPos.z)) {
-          this.controls.target.lerp(targetPos, 0.1);
+    // 2nd person follow/tracking camera logic: locked tracking behind the agent's horizontal yaw heading
+    if (this.mode === 'model_input') {
+      let effectivePos = capsulePos;
+      if (!effectivePos || !isValidVector(effectivePos)) {
+        if (headMatrix) {
+          const hPos = new THREE.Vector3();
+          const hQuat = new THREE.Quaternion();
+          const hScale = new THREE.Vector3();
+          headMatrix.decompose(hPos, hQuat, hScale);
+          effectivePos = hPos;
         }
       }
+
+      if (effectivePos && isValidVector(effectivePos)) {
+        let yawQuat = new THREE.Quaternion();
+        if (capsuleQuat) {
+          const euler = new THREE.Euler().setFromQuaternion(capsuleQuat, 'YXZ');
+          yawQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), euler.y);
+        } else if (headMatrix) {
+          const hPos = new THREE.Vector3();
+          const hQuat = new THREE.Quaternion();
+          const hScale = new THREE.Vector3();
+          headMatrix.decompose(hPos, hQuat, hScale);
+          const euler = new THREE.Euler().setFromQuaternion(hQuat, 'YXZ');
+          yawQuat.setFromAxisAngle(new THREE.Vector3(0, 1, 0), euler.y);
+        }
+
+        const localOffset = new THREE.Vector3(0, 2.0, 3.5); // 2m up, 3.5m behind character facing direction
+        const targetPosWorld = localOffset.clone().applyQuaternion(yawQuat).add(effectivePos);
+
+        if (this.needsChaseSnap) {
+          this.chaseCam.position.copy(targetPosWorld);
+          this.needsChaseSnap = false;
+        } else {
+          this.chaseCam.position.lerp(targetPosWorld, 0.1);
+        }
+
+        this.chaseCam.up.set(0, 1, 0);
+        const lookTarget = new THREE.Vector3(effectivePos.x, effectivePos.y + 0.5, effectivePos.z);
+        this.chaseCam.lookAt(lookTarget);
+      }
+    }
+
+    // 3rd person camera: completely unanchored free general orbital/axial controls
+    if (this.mode === 'third_person') {
       this.controls.update();
     }
   }
@@ -182,6 +222,9 @@ export class CameraManager {
   }
 
   public setMode(mode: CameraMode): void {
+    if (mode === 'model_input') {
+      this.needsChaseSnap = true;
+    }
     this.mode = mode;
     this.controls.enabled = mode === 'third_person';
     this.transformControls.camera = this.getMainCamera();

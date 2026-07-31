@@ -34,6 +34,9 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   const boundaryViolationCountRef = useRef(0);
   const BOUNDARY_RESET_FRAMES = 5;
 
+  const lastViewedAgentIdRef = useRef<string>('');
+  const lastCameraModeRef = useRef<string>('');
+
   // Multi-agent active loops
   const agentLoopsRef = useRef<Map<string, AgentLoop>>(new Map());
 
@@ -219,10 +222,35 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
                   useWorldStore.getState().showAICameraHelper,
                   worldEngineRef.current?.getCameraManager().getCameraData()
                 );
-                const state = humanoidPhysicsBinder.getJointState('agent_0');
+
+                const activeViewAgentId = useAgentStore.getState().activeViewAgentId || 'agent_0';
+                const cameraMode = useWorldStore.getState().cameraMode;
+
+                const state = humanoidPhysicsBinder.getJointState(activeViewAgentId);
                 lastJointStateRef.current = state;
 
-                const headTransform = humanoidPhysicsBinder.getHeadTransform('agent_0');
+                const headTransform = humanoidPhysicsBinder.getHeadTransform(activeViewAgentId);
+
+                let capsuleQuat: THREE.Quaternion | undefined;
+                let capsulePos: THREE.Vector3 | undefined;
+                const capsuleBody = humanoidPhysicsBinder.getCapsuleBody(activeViewAgentId);
+                if (capsuleBody?.isValid()) {
+                  const t = capsuleBody.translation();
+                  const r = capsuleBody.rotation();
+                  capsulePos = new THREE.Vector3(t.x, t.y, t.z);
+                  capsuleQuat = new THREE.Quaternion(r.x, r.y, r.z, r.w);
+                }
+
+                const cameraManager = worldEngineRef.current?.getCameraManager();
+                if (cameraManager && capsulePos) {
+                  // Call setViewingAgent to perform focus snap/re-center on agent selection or mode switch exactly once
+                  if (lastViewedAgentIdRef.current !== activeViewAgentId || lastCameraModeRef.current !== cameraMode) {
+                    cameraManager.setViewingAgent(activeViewAgentId, capsulePos);
+                    lastViewedAgentIdRef.current = activeViewAgentId;
+                    lastCameraModeRef.current = cameraMode;
+                  }
+                }
+
                 if (headTransform) {
                   const headMatrix = new THREE.Matrix4().compose(
                     headTransform.position,
@@ -230,24 +258,20 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
                     new THREE.Vector3(1, 1, 1)
                   );
 
-                  let capsuleQuat: THREE.Quaternion | undefined;
-                  let capsulePos: THREE.Vector3 | undefined;
-                  const capsuleBody = humanoidPhysicsBinder.getCapsuleBody('agent_0');
-                  if (capsuleBody?.isValid()) {
-                    const t = capsuleBody.translation();
-                    const r = capsuleBody.rotation();
-                    capsulePos = new THREE.Vector3(t.x, t.y, t.z);
-                    capsuleQuat = new THREE.Quaternion(r.x, r.y, r.z, r.w);
-                  }
-
-                  worldEngineRef.current?.getCameraManager().update(headMatrix, headTransform.position, capsuleQuat, capsulePos);
+                  cameraManager?.update(headMatrix, headTransform.position, capsuleQuat, capsulePos);
                 }
 
-                if (humanoidPhysicsBinder.isOutOfWorldBounds('agent_0')) {
+                if (humanoidPhysicsBinder.isOutOfWorldBounds(activeViewAgentId)) {
                   boundaryViolationCountRef.current += 1;
                   if (boundaryViolationCountRef.current >= BOUNDARY_RESET_FRAMES) {
-                    Logger.warn('useWorld: agent_0 exceeded world boundary — auto reset');
-                    humanoidPhysicsBinder.resetPose(useWorldStore.getState().spawnPoint, 'agent_0');
+                    Logger.warn(`useWorld: ${activeViewAgentId} exceeded world boundary — auto reset`);
+                    const agentIndex = Array.from(agentLoopsRef.current.keys()).indexOf(activeViewAgentId);
+                    const spawnOffset = new THREE.Vector3(
+                      (agentIndex >= 0 ? agentIndex : 0) * 2.0,
+                      useWorldStore.getState().spawnPoint.y,
+                      useWorldStore.getState().spawnPoint.z
+                    );
+                    humanoidPhysicsBinder.resetPose(spawnOffset, activeViewAgentId);
                     boundaryViolationCountRef.current = 0;
                   }
                 } else {

@@ -27,7 +27,7 @@ import type { CameraMode } from './types/world';
 function App() {
   const { activeRightPanelTab, setActiveRightPanelTab, rightPanelOpen, setRightPanelOpen, theme, toggleTheme } = useUIStore();
   const { cameraMode, setCameraMode } = useWorldStore();
-  const { agents, activeAgentId, setActiveAgentId } = useAgentStore();
+  const { agents, activeAgentId, setActiveAgentId, activeViewAgentId, setActiveViewAgentId } = useAgentStore();
 
   useEffect(() => {
     const resumeAudio = async () => {
@@ -57,6 +57,31 @@ function App() {
       <WorldViewport />
 
       {/* === Floating UI Layer === */}
+
+      {/* Top-Center Agent Selector Dropdown */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 glassmorphism rounded-full flex items-center gap-2 px-4 py-2 z-50">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-text-secondary select-none">
+          Viewing:
+        </span>
+        <select
+          value={activeViewAgentId}
+          onChange={(e) => setActiveViewAgentId(e.target.value)}
+          className="bg-transparent border-none text-[10px] font-bold text-accent-blue focus:outline-none cursor-pointer pr-2 appearance-none font-mono"
+          style={{
+            backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230088ff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'right center',
+            backgroundSize: '10px',
+            paddingRight: '16px'
+          }}
+        >
+          {Object.keys(agents).map((id) => (
+            <option key={id} value={id} className="bg-bg-elevated text-text-primary">
+              {id.toUpperCase()}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Logo Pill - Top Left */}
       <div className="fixed top-4 left-4 glassmorphism rounded-full flex items-center gap-2.5 px-4 py-2 z-50">
@@ -148,8 +173,8 @@ function App() {
                   Agent:
                 </span>
                 <select
-                  value={activeAgentId}
-                  onChange={(e) => setActiveAgentId(e.target.value)}
+                  value={activeViewAgentId}
+                  onChange={(e) => setActiveViewAgentId(e.target.value)}
                   className="bg-black/40 border border-white/10 rounded px-2 py-0.5 text-[10px] font-bold text-text-secondary focus:outline-none cursor-pointer"
                 >
                   {Object.keys(agents).map((id) => (
