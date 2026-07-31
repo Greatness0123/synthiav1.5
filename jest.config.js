@@ -11,7 +11,7 @@ export default {
     '**/src/world/engine/__tests__/PhysicsIntegration.test.ts'
   ],
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', { useESM: true, tsconfig: { module: 'esnext', esModuleInterop: true, skipLibCheck: true, checkJs: false } }],
+    '^.+\\.tsx?$': ['ts-jest', { useESM: true, tsconfig: { module: 'esnext', esModuleInterop: true, skipLibCheck: true, checkJs: false, types: ['node', 'jest'] } }],
   },
   extensionsToTreatAsEsm: ['.ts'],
   moduleNameMapper: {
