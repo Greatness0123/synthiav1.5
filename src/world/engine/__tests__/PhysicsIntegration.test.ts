@@ -89,8 +89,8 @@ describe('MuJoCo Physics and Humanoid Integration', () => {
     const diagnostics = binder.getDiagnostics();
     expect(diagnostics.isLoaded).toBe(true);
     expect(diagnostics.hasCapsuleBody).toBe(true);
-    expect(diagnostics.boneCount).toBe(62);
-    expect(diagnostics.multiBodyBoneCount).toBe(50);
+    expect(diagnostics.boneCount).toBe(65);
+    expect(diagnostics.multiBodyBoneCount).toBe(51);
   });
 
   test('actuators respond to single and simultaneous multi-target targets correctly', async () => {

@@ -1,5 +1,5 @@
 /**
- * Main application entry point and root component.
+ * Main application entry point and root component with multi-agent selection and spawning controls.
  */
 
 import { AppShell } from './components/layout/AppShell';
@@ -14,7 +14,8 @@ import { StructureViewer } from './components/agent/StructureViewer';
 import { GodModePanel } from './components/godmode/GodModePanel';
 import { useUIStore } from './store/uiStore';
 import { useWorldStore } from './store/worldStore';
-import { Brain, Database, Cube, ListChecks, TreeStructure, Camera, VideoCamera, Monitor, X, Sun, Moon } from '@phosphor-icons/react';
+import { useAgentStore } from './store/agentStore';
+import { Brain, Database, Cube, ListChecks, TreeStructure, Camera, VideoCamera, Monitor, X, Sun, Moon, Plus } from '@phosphor-icons/react';
 import { ExportModal } from './components/export/ExportModal';
 import { LogViewer } from './components/agent/LogViewer';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,6 +27,7 @@ import type { CameraMode } from './types/world';
 function App() {
   const { activeRightPanelTab, setActiveRightPanelTab, rightPanelOpen, setRightPanelOpen, theme, toggleTheme } = useUIStore();
   const { cameraMode, setCameraMode } = useWorldStore();
+  const { agents, activeAgentId, setActiveAgentId } = useAgentStore();
 
   useEffect(() => {
     const resumeAudio = async () => {
@@ -74,6 +76,19 @@ function App() {
         )}
       </button>
 
+      {/* Spawn Agent Button - Top Left, under theme toggle */}
+      <button
+        onClick={() => {
+          if ((window as any).spawnAgent) {
+            (window as any).spawnAgent();
+          }
+        }}
+        className="fixed top-[156px] left-4 w-10 h-10 glassmorphism rounded-full flex items-center justify-center hover:bg-white/10 hover:text-accent-green text-text-secondary transition-all z-50 group"
+        title="Spawn Agent"
+      >
+        <Plus size={20} weight="bold" />
+      </button>
+
       {/* Camera Controls Pill - Top Right */}
       <div className="fixed top-4 right-4 glassmorphism rounded-full flex items-center p-1 z-50">
         {[
@@ -113,8 +128,6 @@ function App() {
         </button>
       )}
 
-      {/* No backdrop - user can see through to viewport */}
-
       {/* Right Panel Modal */}
       <AnimatePresence>
         {rightPanelOpen && (
@@ -128,11 +141,24 @@ function App() {
             dragElastic={0}
             className="fixed top-[10vh] right-[15%] w-[380px] h-[80vh] glassmorphism rounded-modal z-[60] flex flex-col overflow-hidden cursor-grab active:cursor-grabbing"
           >
-            {/* Header */}
+            {/* Header with Multi-Agent Selector */}
             <div className="flex items-center justify-between px-4 py-2 border-b border-white/10 shrink-0 cursor-grab">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-text-secondary select-none">
-                Agent
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-text-secondary select-none">
+                  Agent:
+                </span>
+                <select
+                  value={activeAgentId}
+                  onChange={(e) => setActiveAgentId(e.target.value)}
+                  className="bg-black/40 border border-white/10 rounded px-2 py-0.5 text-[10px] font-bold text-text-secondary focus:outline-none cursor-pointer"
+                >
+                  {Object.keys(agents).map((id) => (
+                    <option key={id} value={id}>
+                      {id}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <button
                 onClick={() => setRightPanelOpen(false)}
                 className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-white/10 transition-colors"

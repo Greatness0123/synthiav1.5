@@ -303,7 +303,7 @@ export class PhysicsDiagnostic {
       });
 
       if (this.frameCount % this.traceSampleInterval === 0) {
-        const boneInfoMap = (this.binder as any).boneInfoMap as Map<string, any> | undefined;
+        const boneInfoMap = agent ? agent.boneInfoMap : undefined;
         const leftInfo = boneInfoMap?.get('mixamorigleftfoot');
         const rightInfo = boneInfoMap?.get('mixamorigrightfoot');
         const leftFoot = new THREE.Vector3();
@@ -338,7 +338,8 @@ export class PhysicsDiagnostic {
       }
     }
 
-    const currentTargets = (this.binder as any).currentTargets;
+    const agent = this.binder.getAgents().get('agent_0');
+    const currentTargets = agent ? agent.currentTargets : new Map();
 
     // Build the dof index cache if empty to avoid calling name2id in the loop
     if (this.jointDofCache.size === 0) {

@@ -128,13 +128,19 @@ export function _estimateBoneLength(
   return heuristic[boneName] ?? 0.15;
 }
 
+export interface MJCFAgentSpec {
+  id: string;
+  spawnOffset: { x: number; y: number; z: number };
+}
+
 export function generateHumanoidMJCF(
   boneInfoMap: Map<string, { bone: THREE.Bone; worldPosition: THREE.Vector3 }>,
   _skeletonOrBones: any,
   capsuleCenterYOrPhysicsMatrix?: any,
   modelRootOrRigConstraints?: any,
   physicsMatrix?: any,
-  rigConstraints?: any
+  rigConstraints?: any,
+  agents?: MJCFAgentSpec[]
 ): string {
   let capsuleCenterY = 0.9;
   let pMatrix = COMPLETE_MIXAMO_PHYSICS_MATRIX;
@@ -171,21 +177,17 @@ export function generateHumanoidMJCF(
     modelZ = hipsInfo.worldPosition.z;
   }
 
-  // Root capsule parameters matching Rapier values
   const modelHeight = 1.8;
   const capsuleRadius = 0.2;
   const capsuleHalfHeight = Math.max(0.1, (modelHeight / 2) - capsuleRadius);
 
-  const capsulePosThree = { x: modelX, y: capsuleCenterY, z: modelZ };
-  const capsulePosMj = PhysicsEngine.worldToMuJoCo(capsulePosThree);
-  const capsuleQuatMj = [1, 0, 0, 0]; // Identity rotation w,x,y,z
-
-  // Root capsule coordinates and orientation in MuJoCo space
-  const rootCapsulePosStr = `${capsulePosMj[0]} ${capsulePosMj[1]} ${capsulePosMj[2]}`;
-  const rootCapsuleQuatStr = `${capsuleQuatMj[0]} ${capsuleQuatMj[1]} ${capsuleQuatMj[2]} ${capsuleQuatMj[3]}`;
-
   // Helper to build recursive bodies
-  const buildBodyTreeXML = (boneName: string, parentPos: [number, number, number], parentQuat: [number, number, number, number]): string => {
+  const buildBodyTreeXML = (
+    boneName: string,
+    parentPos: [number, number, number],
+    parentQuat: [number, number, number, number],
+    prefix: string
+  ): string => {
     const boneInfo = boneInfoMap.get(boneName);
     if (!boneInfo) return '';
 
@@ -195,8 +197,6 @@ export function generateHumanoidMJCF(
     const threePos = boneInfo.worldPosition.clone();
     const threeQuat = new THREE.Quaternion();
     bone.getWorldQuaternion(threeQuat);
-
-
 
     // Convert child absolute position/rotation to MuJoCo space
     const childPosMj = PhysicsEngine.worldToMuJoCo(threePos);
@@ -219,7 +219,6 @@ export function generateHumanoidMJCF(
     const phys = pMatrix[boneName] || { mass: 0.5, principalInertia: { x: 0.005, y: 0.002, z: 0.005 } };
 
     // Inertial principal moments mapped from Three local to MuJoCo local
-    // (Three Y-axis mapped to MuJoCo Z-axis)
     const ixx = phys.principalInertia.x;
     const iyy = phys.principalInertia.z;
     const izz = phys.principalInertia.y;
@@ -239,8 +238,7 @@ export function generateHumanoidMJCF(
       // Ankle position in MuJoCo space
       const ankleMj = childPosMj;
 
-      // Position box sole center in world space:
-      // X = same as ankle, Y = 6cm forward (-Y in MuJoCo space), Z = 1.5cm (so bottom sits flush at Z = 0 floor level)
+      // Position box sole center in world space
       const pWorldOffset = new THREE.Vector3(
         0,
         -0.06,
@@ -250,11 +248,11 @@ export function generateHumanoidMJCF(
       const pGeomLocal = pWorldOffset.clone().applyQuaternion(qBodyInv);
       const pGeomLocalStr = `${pGeomLocal.x} ${pGeomLocal.y} ${pGeomLocal.z}`;
 
-      // High friction on foot soles: sliding=1.5 torsional=0.1 rolling=0.05 prevents ice-cube drift
-      geomXML = `<geom name="${boneName}_geom" type="box" size="${FOOT_HALF_WIDTH} ${FOOT_HALF_LENGTH} ${FOOT_HALF_HEIGHT}" pos="${pGeomLocalStr}" quat="${qGeomLocalStr}" friction="1.5 0.1 0.05" contype="2" conaffinity="1" solref="0.004 1" solimp="0.95 0.99 0.001 0.5 2"/>`;
+      // High friction on foot soles
+      geomXML = `<geom name="${prefix}${boneName}_geom" type="box" size="${FOOT_HALF_WIDTH} ${FOOT_HALF_LENGTH} ${FOOT_HALF_HEIGHT}" pos="${pGeomLocalStr}" quat="${qGeomLocalStr}" friction="1.5 0.1 0.05" contype="2" conaffinity="1" solref="0.004 1" solimp="0.95 0.99 0.001 0.5 2"/>`;
     } else {
       const colRadius = 0.04;
-      geomXML = `<geom name="${boneName}_geom" type="sphere" size="${colRadius}" pos="0 0 0" contype="2" conaffinity="1" solref="0.004 1" solimp="0.95 0.99 0.001 0.5 2"/>`;
+      geomXML = `<geom name="${prefix}${boneName}_geom" type="sphere" size="${colRadius}" pos="0 0 0" contype="2" conaffinity="1" solref="0.004 1" solimp="0.95 0.99 0.001 0.5 2"/>`;
     }
 
     // Joint declarations
@@ -281,18 +279,18 @@ export function generateHumanoidMJCF(
       // Single Hinge Joint (Pitch: axis 1 0 0)
       const min = constraint?.x?.[0] ?? limits?.min ?? -2.618;
       const max = constraint?.x?.[1] ?? limits?.max ?? 0;
-      jointsXML = `<joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(min, max)}" limited="true"/>`;
-      actuators.push(`<position name="act_${boneName}_pitch" joint="${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(min, max)}"/>`);
+      jointsXML = `<joint name="${prefix}${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(min, max)}" limited="true"/>`;
+      actuators.push(`<position name="act_${prefix}${boneName}_pitch" joint="${prefix}${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(min, max)}"/>`);
     } else if (constraint && constraint.dof === 2) {
       // 2-DOF Joint Decomposed into Pitch (1 0 0) and Roll (0 1 0)
       const minX = constraint.x[0], maxX = constraint.x[1];
       const minZ = constraint.z[0], maxZ = constraint.z[1];
       jointsXML = `
-        <joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(minX, maxX)}" limited="true"/>
-        <joint name="${boneName}_roll" type="hinge" axis="0 1 0" range="${getSafeRangeStr(minZ, maxZ)}" limited="true"/>
+        <joint name="${prefix}${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(minX, maxX)}" limited="true"/>
+        <joint name="${prefix}${boneName}_roll" type="hinge" axis="0 1 0" range="${getSafeRangeStr(minZ, maxZ)}" limited="true"/>
       `;
-      actuators.push(`<position name="act_${boneName}_pitch" joint="${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minX, maxX)}"/>`);
-      actuators.push(`<position name="act_${boneName}_roll" joint="${boneName}_roll" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minZ, maxZ)}"/>`);
+      actuators.push(`<position name="act_${prefix}${boneName}_pitch" joint="${prefix}${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minX, maxX)}"/>`);
+      actuators.push(`<position name="act_${prefix}${boneName}_roll" joint="${prefix}${boneName}_roll" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minZ, maxZ)}"/>`);
     } else {
       const minX = constraint?.x?.[0] ?? limits?.min ?? -0.785;
       const maxX = constraint?.x?.[1] ?? limits?.max ?? 0.785;
@@ -301,33 +299,27 @@ export function generateHumanoidMJCF(
       const minZ = constraint?.z?.[0] ?? -0.785;
       const maxZ = constraint?.z?.[1] ?? 0.785;
 
-      // Head/neck: the Mixamo T-pose bind-pose quaternion bakes a ~90° rotation into the
-      // body frame, which physically flips what axis="0 0 1" (yaw) and axis="0 1 0" (roll)
-      // actually do in world space. Swapping them here restores the correct semantics:
-      //   _yaw  → axis 0 1 0  (body-local Y → world vertical after transform → left/right turn)
-      //   _pitch → axis 1 0 0 (body-local X → forward/back tilt, unchanged)
-      //   _roll  → axis 0 0 1  (body-local Z → lateral side-tilt)
       const isHeadNeck = boneName.includes('neck') || boneName.includes('head');
       const yawAxis   = isHeadNeck ? '0 1 0' : '0 0 1';
       const rollAxis  = isHeadNeck ? '0 0 1' : '0 1 0';
 
       // 3-DOF Joint: Yaw -> Pitch -> Roll
       jointsXML = `
-        <joint name="${boneName}_yaw" type="hinge" axis="${yawAxis}" range="${getSafeRangeStr(minY, maxY)}" limited="true"/>
-        <joint name="${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(minX, maxX)}" limited="true"/>
-        <joint name="${boneName}_roll" type="hinge" axis="${rollAxis}" range="${getSafeRangeStr(minZ, maxZ)}" limited="true"/>
+        <joint name="${prefix}${boneName}_yaw" type="hinge" axis="${yawAxis}" range="${getSafeRangeStr(minY, maxY)}" limited="true"/>
+        <joint name="${prefix}${boneName}_pitch" type="hinge" axis="1 0 0" range="${getSafeRangeStr(minX, maxX)}" limited="true"/>
+        <joint name="${prefix}${boneName}_roll" type="hinge" axis="${rollAxis}" range="${getSafeRangeStr(minZ, maxZ)}" limited="true"/>
       `;
-      actuators.push(`<position name="act_${boneName}_yaw" joint="${boneName}_yaw" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minY, maxY)}"/>`);
-      actuators.push(`<position name="act_${boneName}_pitch" joint="${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minX, maxX)}"/>`);
-      actuators.push(`<position name="act_${boneName}_roll" joint="${boneName}_roll" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minZ, maxZ)}"/>`);
+      actuators.push(`<position name="act_${prefix}${boneName}_yaw" joint="${prefix}${boneName}_yaw" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minY, maxY)}"/>`);
+      actuators.push(`<position name="act_${prefix}${boneName}_pitch" joint="${prefix}${boneName}_pitch" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minX, maxX)}"/>`);
+      actuators.push(`<position name="act_${prefix}${boneName}_roll" joint="${prefix}${boneName}_roll" kp="${kp}" kv="${kv}" ctrlrange="${getSafeRangeStr(minZ, maxZ)}"/>`);
     }
 
     // Recursively build children
     const childBones = Array.from(trackedBones).filter(b => getPhysicsParentName(boneInfoMap.get(b)!.bone, trackedBones) === boneName);
-    const childrenXML = childBones.map(cb => buildBodyTreeXML(cb, childPosMj as [number, number, number], childQuatMj as [number, number, number, number])).join('\n');
+    const childrenXML = childBones.map(cb => buildBodyTreeXML(cb, childPosMj as [number, number, number], childQuatMj as [number, number, number, number], prefix)).join('\n');
 
     return `
-      <body name="${boneName}" pos="${posStr}" quat="${quatStr}">
+      <body name="${prefix}${boneName}" pos="${posStr}" quat="${quatStr}">
         <inertial pos="0 0 0" mass="${phys.mass}" diaginertia="${ixx} ${iyy} ${izz}"/>
         ${jointsXML}
         ${geomXML}
@@ -336,8 +328,42 @@ export function generateHumanoidMJCF(
     `.trim();
   };
 
-  // Build the humanoid skeleton tree anchored at mixamorighips under the root capsule
-  const hipsBranch = buildBodyTreeXML('mixamorighips', capsulePosMj as [number, number, number], capsuleQuatMj as [number, number, number, number]);
+  // Compose N humanoid bodies dynamically
+  const agentsList = agents && agents.length > 0 ? agents : [{ id: '', spawnOffset: { x: 0, y: 0, z: 0 } }];
+  const agentBodiesXml: string[] = [];
+
+  for (const agent of agentsList) {
+    const prefix = agent.id ? `agent_${agent.id}_` : '';
+
+    const capsulePosThree = {
+      x: modelX + agent.spawnOffset.x,
+      y: capsuleCenterY + agent.spawnOffset.y,
+      z: modelZ + agent.spawnOffset.z
+    };
+    const capsulePosMj = PhysicsEngine.worldToMuJoCo(capsulePosThree);
+    const capsuleQuatMj = [1, 0, 0, 0]; // Identity rotation w,x,y,z
+
+    const rootCapsulePosStr = `${capsulePosMj[0]} ${capsulePosMj[1]} ${capsulePosMj[2]}`;
+    const rootCapsuleQuatStr = `${capsuleQuatMj[0]} ${capsuleQuatMj[1]} ${capsuleQuatMj[2]} ${capsuleQuatMj[3]}`;
+
+    const hipsBranch = buildBodyTreeXML(
+      'mixamorighips',
+      capsulePosMj as [number, number, number],
+      capsuleQuatMj as [number, number, number, number],
+      prefix
+    );
+
+    agentBodiesXml.push(`
+    <body name="${prefix}root_capsule" pos="${rootCapsulePosStr}" quat="${rootCapsuleQuatStr}">
+      <freejoint name="${prefix}root_freejoint"/>
+      <geom name="${prefix}root_capsule_geom" type="capsule" size="${capsuleRadius} ${capsuleHalfHeight}" pos="0 0 0" contype="0" conaffinity="0"/>
+      <inertial pos="0 0 0" mass="0.001" diaginertia="5.0 3.0 5.0"/>
+
+      ${hipsBranch}
+      <geom name="${prefix}torso_collider" type="sphere" size="0.12" pos="0 0 0" contype="2" conaffinity="1" solref="0.004 1" solimp="0.95 0.99 0.001 0.5 2"/>
+    </body>
+    `);
+  }
 
   // Generate pre-allocated slot bodies (env_slot_0 to env_slot_N)
   const slotBodies: string[] = [];
@@ -370,7 +396,7 @@ export function generateHumanoidMJCF(
     const noteIndex = midiNote % 12;
     const noteName = NOTE_NAMES[noteIndex] + octave;
 
-    // Map relative positions: x_mj = xOffset, y_mj = zOffset, z_mj = -yOffset
+    // Map relative positions
     pianoGeoms.push(`      <geom name="piano_${noteName}" type="box" size="${width / 2} ${depth / 2} ${height / 2}" pos="${xOffset} ${zOffset} ${-yOffset}" contype="0" conaffinity="0"/>`);
   }
 
@@ -394,14 +420,7 @@ ${pianoGeoms.join('\n')}
     <light directional="true" pos="0 0 5" dir="0 0 -1"/>
     <geom name="floor" type="plane" size="100 100 0.1" rgba="0.8 0.9 0.8 1" friction="1.0 0.05 0.01" contype="1" conaffinity="2" solref="0.004 1" solimp="0.95 0.99 0.001 0.5 2"/>
 
-    <body name="root_capsule" pos="${rootCapsulePosStr}" quat="${rootCapsuleQuatStr}">
-      <freejoint name="root_freejoint"/>
-      <geom name="root_capsule_geom" type="capsule" size="${capsuleRadius} ${capsuleHalfHeight}" pos="0 0 0" contype="0" conaffinity="0"/>
-      <inertial pos="0 0 0" mass="0.001" diaginertia="5.0 3.0 5.0"/>
-
-      ${hipsBranch}
-      <geom name="torso_collider" type="sphere" size="0.12" pos="0 0 0" contype="2" conaffinity="1" solref="0.004 1" solimp="0.95 0.99 0.001 0.5 2"/>
-    </body>
+    ${agentBodiesXml.join('\n')}
 
     ${slotBodies.join('\n')}
 
