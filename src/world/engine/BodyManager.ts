@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PhysicsEngine } from './PhysicsEngine';
-import { generateHumanoidMJCF } from './MJCFHumanoidTemplate';
+import { generateHumanoidMJCF, MJCFAgentSpec } from './MJCFHumanoidTemplate';
 import { logger as Logger } from '../../utils/logger';
 
 export class BodyManager {
@@ -9,10 +9,10 @@ export class BodyManager {
   private capsuleCenterY: number = 0;
   private _boneInfoMap: Map<string, { bone: THREE.Bone; worldPosition: THREE.Vector3 }> | null = null;
 
-  private bodyMap: Map<string, number> = new Map(); // boneName -> bodyId
-  private geomMap: Map<string, number> = new Map(); // boneName -> geomId
-  private actuatorMap: Map<string, number[]> = new Map(); // boneName -> actuatorIds
-  private capsuleBodyId: number | null = null;
+  private bodyMap: Map<string, number> = new Map(); // prefixedName -> bodyId (e.g. "agent_0_mixamorighips" -> 14)
+  private geomMap: Map<string, number> = new Map(); // prefixedName -> geomId
+  private actuatorMap: Map<string, number[]> = new Map(); // prefixedName -> actuatorIds
+  private capsuleBodyIds: Map<string, number> = new Map(); // agentId -> bodyId
 
   private pristineBaseMjcfXml: string = '';
   private currentBaseMjcfXml: string = '';
@@ -40,7 +40,8 @@ export class BodyManager {
     _skeleton: THREE.Skeleton,
     _capsuleBody: any, // kept for signature parity
     capsuleCenterY: number,
-    modelRoot: THREE.Group
+    modelRoot: THREE.Group,
+    agentsList?: MJCFAgentSpec[]
   ): Promise<boolean> {
     if (this.isActive) return true;
 
@@ -53,8 +54,8 @@ export class BodyManager {
 
       this.deactivate();
 
-      // 1. Generate full humanoid MJCF string
-      const mjcfXml = generateHumanoidMJCF(boneInfoMap, _skeleton, capsuleCenterY, modelRoot);
+      // 1. Generate full multi-agent humanoid MJCF string
+      const mjcfXml = generateHumanoidMJCF(boneInfoMap, _skeleton, capsuleCenterY, modelRoot, null, null, agentsList);
       this.pristineBaseMjcfXml = mjcfXml;
       this.currentBaseMjcfXml = mjcfXml;
 
@@ -71,64 +72,60 @@ export class BodyManager {
         throw new Error('MuJoCoBodyManager: MuJoCo module not initialized');
       }
 
-      // 4. Map bone names to body IDs and geom IDs
       this.bodyMap.clear();
       this.geomMap.clear();
+      this.actuatorMap.clear();
+      this.capsuleBodyIds.clear();
 
-      // Map root_capsule
-      const rootBodyId = module.mj_name2id(model, module.mjtObj.mjOBJ_BODY.value, 'root_capsule');
-      if (rootBodyId >= 0) {
-        this.capsuleBodyId = rootBodyId;
-        this.bodyMap.set('root_capsule', rootBodyId);
-      }
+      const activeAgents = agentsList && agentsList.length > 0 ? agentsList : [{ id: '', spawnOffset: { x: 0, y: 0, z: 0 } }];
 
-      const rootGeomId = module.mj_name2id(model, module.mjtObj.mjOBJ_GEOM.value, 'root_capsule_geom');
-      if (rootGeomId >= 0) {
-        this.geomMap.set('root_capsule', rootGeomId);
-      }
+      // 4. Map prefixed bone names to body IDs, geom IDs, and actuator IDs
+      for (const agent of activeAgents) {
+        const prefix = agent.id ? `agent_${agent.id}_` : '';
 
-      // Map all tracked bones
-      for (const boneName of boneInfoMap.keys()) {
-        const bodyId = module.mj_name2id(model, module.mjtObj.mjOBJ_BODY.value, boneName);
-        if (bodyId >= 0) {
-          this.bodyMap.set(boneName, bodyId);
+        // Map root_capsule
+        const rootBodyId = module.mj_name2id(model, module.mjtObj.mjOBJ_BODY.value, prefix + 'root_capsule');
+        if (rootBodyId >= 0) {
+          this.capsuleBodyIds.set(agent.id, rootBodyId);
+          this.bodyMap.set(prefix + 'root_capsule', rootBodyId);
         }
 
-        const geomId = module.mj_name2id(model, module.mjtObj.mjOBJ_GEOM.value, boneName + '_geom');
-        if (geomId >= 0) {
-          this.geomMap.set(boneName, geomId);
+        const rootGeomId = module.mj_name2id(model, module.mjtObj.mjOBJ_GEOM.value, prefix + 'root_capsule_geom');
+        if (rootGeomId >= 0) {
+          this.geomMap.set(prefix + 'root_capsule_geom', rootGeomId);
         }
 
-        const suffixes = ['_yaw', '_pitch', '_roll'];
-        for (const suffix of suffixes) {
-          const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + suffix);
-          if (jntId >= 0) {
-            if (typeof window !== 'undefined' && ((window as any).__SYNTHIA_DEBUG__ || (window as any).location?.hostname === 'localhost')) {
-              console.log(`[JOINT MAP] ${boneName}${suffix} -> qposadr=${model.jnt_qposadr[jntId]}`);
+        // Map all tracked bones for this agent
+        for (const boneName of boneInfoMap.keys()) {
+          const prefBone = prefix + boneName;
+          const bodyId = module.mj_name2id(model, module.mjtObj.mjOBJ_BODY.value, prefBone);
+          if (bodyId >= 0) {
+            this.bodyMap.set(prefBone, bodyId);
+          }
+
+          const geomId = module.mj_name2id(model, module.mjtObj.mjOBJ_GEOM.value, prefBone + '_geom');
+          if (geomId >= 0) {
+            this.geomMap.set(prefBone, geomId);
+          }
+
+          // Map actuators
+          const ids: number[] = [];
+          const suffixes = ['_yaw', '_pitch', '_roll'];
+          for (const suffix of suffixes) {
+            const actName = `act_${prefix}${boneName}${suffix}`;
+            const actId = module.mj_name2id(model, module.mjtObj.mjOBJ_ACTUATOR.value, actName);
+            if (actId >= 0) {
+              ids.push(actId);
             }
           }
-        }
-      }
-
-      // Build actuator ID map
-      this.actuatorMap.clear();
-      for (const boneName of boneInfoMap.keys()) {
-        const ids: number[] = [];
-        const suffixes = ['_yaw', '_pitch', '_roll'];
-        for (const suffix of suffixes) {
-          const actName = `act_${boneName}${suffix}`;
-          const actId = module.mj_name2id(model, module.mjtObj.mjOBJ_ACTUATOR.value, actName);
-          if (actId >= 0) {
-            ids.push(actId);
+          if (ids.length > 0) {
+            this.actuatorMap.set(prefBone, ids);
           }
-        }
-        if (ids.length > 0) {
-          this.actuatorMap.set(boneName, ids);
         }
       }
 
       this.isActive = true;
-      Logger.info(`MuJoCoBodyManager: Activated. Tracked ${this.bodyMap.size} body IDs, ${this.geomMap.size} geom IDs, and ${this.actuatorMap.size} actuator bones.`);
+      Logger.info(`MuJoCoBodyManager: Multi-agent Activated. Tracked ${this.bodyMap.size} body IDs, ${this.geomMap.size} geom IDs, and ${this.actuatorMap.size} actuator bones.`);
       return true;
     } catch (error) {
       Logger.error('MuJoCoBodyManager: Activation failed', error);
@@ -150,10 +147,9 @@ export class BodyManager {
       this.bodyMap.clear();
       this.geomMap.clear();
       this.actuatorMap.clear();
-      this.capsuleBodyId = null;
+      this.capsuleBodyIds.clear();
       this.modelRoot = null;
       this._boneInfoMap = null;
-      void this._boneInfoMap; // Silence tsc -b strict mode unused field warning
       this.isActive = false;
       Logger.info('MuJoCoBodyManager: Deactivated');
     } finally {
@@ -165,18 +161,20 @@ export class BodyManager {
     return this.bodyMap;
   }
 
-  public getCapsuleBody(): number | null {
-    return this.capsuleBodyId;
+  public getCapsuleBody(agentId: string = ''): number | null {
+    return this.capsuleBodyIds.get(agentId) ?? null;
   }
 
-  public getBoneColliderHandle(boneName: string): number | null {
-    return this.geomMap.get(boneName) ?? null;
+  public getBoneColliderHandle(prefixedBoneName: string): number | null {
+    return this.geomMap.get(prefixedBoneName) ?? null;
   }
 
   public syncRigidBodiesFromBones(
-    boneInfoMap: Map<string, { bone: THREE.Bone; worldPosition: THREE.Vector3 }>
+    boneInfoMap: Map<string, { bone: THREE.Bone; worldPosition: THREE.Vector3 }>,
+    agentId: string,
+    modelRoot: THREE.Group
   ): void {
-    if (!this.isActive || !this.modelRoot) return;
+    if (!this.isActive) return;
 
     const world = this.physicsEngine.getWorld();
     const model = world.model;
@@ -186,16 +184,18 @@ export class BodyManager {
     const qpos = this.physicsEngine.qpos;
     const qvel = this.physicsEngine.qvel;
 
+    const prefix = agentId ? `agent_${agentId}_` : '';
+
     // 1. Position and orient the root capsule based on model root
-    this.modelRoot.updateMatrixWorld(true);
+    modelRoot.updateMatrixWorld(true);
     const offsetLocal = new THREE.Vector3(0, this.capsuleCenterY, 0);
-    const offsetWorld = offsetLocal.clone().applyQuaternion(this.modelRoot.quaternion);
-    const capsulePosThree = new THREE.Vector3().copy(this.modelRoot.position).add(offsetWorld);
+    const offsetWorld = offsetLocal.clone().applyQuaternion(modelRoot.quaternion);
+    const capsulePosThree = new THREE.Vector3().copy(modelRoot.position).add(offsetWorld);
 
     const capsulePosMj = PhysicsEngine.worldToMuJoCo(capsulePosThree);
-    const capsuleQuatMj = PhysicsEngine.threeQuatToMuJoCo(this.modelRoot.quaternion);
+    const capsuleQuatMj = PhysicsEngine.threeQuatToMuJoCo(modelRoot.quaternion);
 
-    const rootJntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, 'root_freejoint');
+    const rootJntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, prefix + 'root_freejoint');
     if (rootJntId >= 0) {
       const qposadr = model.jnt_qposadr[rootJntId];
       const qveladr = model.jnt_dofadr[rootJntId];
@@ -220,23 +220,19 @@ export class BodyManager {
     for (const [boneName, info] of boneInfoMap) {
       const bone = info.bone;
 
-      // Tracked bones have hinge joints defined
-      const hasYaw = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_yaw') >= 0;
-      const hasPitch = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_pitch') >= 0;
-      const hasRoll = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_roll') >= 0;
+      const hasYaw = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, prefix + boneName + '_yaw') >= 0;
+      const hasPitch = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, prefix + boneName + '_pitch') >= 0;
+      const hasRoll = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, prefix + boneName + '_roll') >= 0;
 
       if (!hasYaw && !hasPitch && !hasRoll) continue;
 
-      // Extract local relative quaternion from bone or compute relative to parent in MuJoCo space
       let qRel: THREE.Quaternion;
       if (CAPSULE_ATTACH_BONES.has(boneName)) {
-        // Connected to capsule root (identity orientation)
         const boneWorldQuat = new THREE.Quaternion();
         bone.getWorldQuaternion(boneWorldQuat);
         const mjQuatArr = PhysicsEngine.threeQuatToMuJoCo(boneWorldQuat);
         qRel = new THREE.Quaternion(mjQuatArr[1], mjQuatArr[2], mjQuatArr[3], mjQuatArr[0]);
       } else {
-        // Connected to regular parent
         const parent = bone.parent as THREE.Bone;
         if (parent) {
           const parentWorldQuat = new THREE.Quaternion();
@@ -256,25 +252,24 @@ export class BodyManager {
         }
       }
 
-      // Convert local relative quaternion of joint into Yaw, Pitch, Roll angles (ZXY order)
       const euler = new THREE.Euler().setFromQuaternion(qRel, 'ZXY');
 
       if (hasYaw) {
-        const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_yaw');
+        const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, prefix + boneName + '_yaw');
         if (jntId >= 0) {
           qpos[model.jnt_qposadr[jntId]] = euler.z;
           qvel[model.jnt_dofadr[jntId]] = 0;
         }
       }
       if (hasPitch) {
-        const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_pitch');
+        const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, prefix + boneName + '_pitch');
         if (jntId >= 0) {
           qpos[model.jnt_qposadr[jntId]] = euler.x;
           qvel[model.jnt_dofadr[jntId]] = 0;
         }
       }
       if (hasRoll) {
-        const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, boneName + '_roll');
+        const jntId = module.mj_name2id(model, module.mjtObj.mjOBJ_JOINT.value, prefix + boneName + '_roll');
         if (jntId >= 0) {
           qpos[model.jnt_qposadr[jntId]] = euler.y;
           qvel[model.jnt_dofadr[jntId]] = 0;
