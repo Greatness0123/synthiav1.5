@@ -78,6 +78,26 @@ export class BodyProxy {
     ];
     return PhysicsEngine.mujocoToWorld(aMj);
   }
+
+  /**
+   * Set the freejoint linear velocity of this body (impulse-style, never a qpos
+   * write — the capsule integrates forward from this velocity via MuJoCo).
+   * Accepts a Three.js/world-frame velocity {x, y, z}.
+   */
+  public setLinearVelocity(v: { x: number; y: number; z: number }): void {
+    const model = this.model;
+    const data = this.data;
+    if (!model || !data) return;
+
+    const dofAdr = model.body_dofadr[this.bodyId];
+    if (dofAdr === undefined) return;
+
+    const qvel = data.qvel;
+    const vMj = PhysicsEngine.worldToMuJoCo({ x: v.x, y: v.y, z: v.z });
+    qvel[dofAdr] = vMj[0];
+    qvel[dofAdr + 1] = vMj[1];
+    qvel[dofAdr + 2] = vMj[2];
+  }
 }
 
 interface BoneInfo {
@@ -86,7 +106,7 @@ interface BoneInfo {
   name: string;
 }
 
-const ENABLE_KINEMATIC_GRF_INJECTOR = false;
+const ENABLE_KINEMATIC_GRF_INJECTOR = true;
 
 export class HumanoidPhysicsBinder {
   private physicsEngine: PhysicsEngine;
@@ -140,6 +160,12 @@ export class HumanoidPhysicsBinder {
   private timelineSequenceStart: number | null = null;
 
   public mbActive: boolean = false;
+  /**
+   * True while a timeline sequence marked `activeGaitPhase` is running.
+   * Relaxes the root balance controller and boosts GRF so the forward lean
+   * a walk requires is not actively cancelled.
+   */
+  public gaitActive: boolean = false;
   private observationBuilder: ObservationBuilder = new ObservationBuilder();
 
   constructor(physicsEngine: PhysicsEngine, scene: THREE.Scene) {
@@ -159,6 +185,7 @@ export class HumanoidPhysicsBinder {
     this.lastAiCommandTime = Date.now();
     this.airborneTimer = 0;
     this.groundingMagnetStrength = 0.0;
+    this.setGaitActive(!!options?.activeGaitPhase);
 
     const rejections: string[] = [];
     const clampingNotes: string[] = [];
@@ -642,6 +669,15 @@ export class HumanoidPhysicsBinder {
     return true;
   }
 
+  public setGaitActive(active: boolean): void {
+    this.gaitActive = active;
+    const capsuleBodyId = this.bodyManager.getCapsuleBody();
+    if (capsuleBodyId !== null && capsuleBodyId >= 0) {
+      this.motorController.setGaitActive(active);
+    }
+    Logger.info(`HumanoidPhysicsBinderMuJoCo: gaitActive=${active}`);
+  }
+
   public async activateMultiBody(): Promise<boolean> {
     if (this.buildStep !== 'D' || !this.modelRoot || !this.skeleton) return false;
     if (this.mbActive) return true;
@@ -909,6 +945,7 @@ export class HumanoidPhysicsBinder {
       const capsulePos = capsuleProxy.translation();
       const modelQuat = this.modelRoot.quaternion.clone();
       const modelForward = new THREE.Vector3(0, 0, -1).applyQuaternion(modelQuat);
+      const gaitBoost = this.gaitActive ? 1.5 : 1.0;
 
       for (const boneName of footBones) {
         const colliderHandle = this.bodyManager.getBoneColliderHandle(boneName);
@@ -917,6 +954,7 @@ export class HumanoidPhysicsBinder {
         const state = registry.get(colliderHandle);
         if (!state || !state.inContact || state.impulse_magnitude < 0.5) continue;
 
+        // Require a real floor contact: the contact normal must be mostly vertical.
         const nz = state.contact_normal[2];
         if (nz < 0.3) continue;
 
@@ -925,25 +963,35 @@ export class HumanoidPhysicsBinder {
         const footPos = new THREE.Vector3();
         boneInfo.bone.getWorldPosition(footPos);
 
-        const forceScale = 1.0 / 60.0;
-        const impulseMag = Math.min(state.impulse_magnitude * forceScale, 8.0);
+        // The registry stores the world-frame (MuJoCo coords) force applied to
+        // this geom. Convert to Three.js/world frame: MuJoCo (x, y, z) →
+        // Three (x, z, -y).
+        const forceMj = state.contact_force;
+        const forceThree = new THREE.Vector3(forceMj[0], forceMj[2], -forceMj[1]);
 
-        const contactNormal = new THREE.Vector3(
-          state.contact_normal[0],
-          state.contact_normal[1],
-          state.contact_normal[2]
-        );
-        const lateralForce = contactNormal.clone();
-        lateralForce.y = 0;
+        // Only the lateral (horizontal, world-Y=0) friction force pushes the
+        // body forward. The vertical normal force supports balance but adds no
+        // translation — projecting it onto the forward axis yields ~zero.
+        const lateralForce = new THREE.Vector3(forceThree.x, 0, forceThree.z);
+
+        // World-Y is up; forwardComponent is the signed push magnitude.
         const forwardComponent = lateralForce.dot(modelForward);
 
+        // Convert the lateral force into an equivalent velocity impulse.
+        // impulseMag (m/s gain) = friction force / 700 (N → m/s per second of
+        // contact, then scaled by timestep-tuned constant); clamped to avoid
+        // runaway.
+        const forceScale = 1.0 / 700.0;
+        const cap = 8.0;
+        const impulseMag = Math.max(-cap, Math.min(cap, forwardComponent * forceScale * gaitBoost));
+
         if (Math.abs(forwardComponent) > 0.01) {
-          const grf = modelForward.clone().multiplyScalar(forwardComponent * impulseMag);
+          const grf = modelForward.clone().multiplyScalar(impulseMag);
           totalImpulse.add(grf);
         }
 
         const offsetFromCenter = footPos.x - capsulePos.x;
-        const torqueY = -forwardComponent * impulseMag * offsetFromCenter * 3.0;
+        const torqueY = -forwardComponent * 0.003 * offsetFromCenter * 6.0;
         totalTorque.y += Math.max(-5.0, Math.min(5.0, torqueY));
       }
 
@@ -1469,6 +1517,8 @@ export class HumanoidPhysicsBinder {
   }
 
   public resetPose(spawnPoint: { x: number; y: number; z: number }): void {
+    this.setGaitActive(false);
+    this.targetSpawnGrounded = false;
     this.setCapsulePosition(spawnPoint.x, spawnPoint.y, spawnPoint.z);
     this.resetToBindPose();
     this.previousFootPositions.clear();
@@ -1490,6 +1540,7 @@ export class HumanoidPhysicsBinder {
   }
 
   public resetToBindPose(): void {
+    this.setGaitActive(false);
     this.currentTargets.clear();
     this.motorController.resetRamp();
 

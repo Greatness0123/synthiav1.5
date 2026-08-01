@@ -236,15 +236,17 @@ export function generateHumanoidMJCF(
       const FOOT_HALF_LENGTH = 0.13;  // 26cm forward-backward (Y)
       const FOOT_HALF_HEIGHT = 0.015; // 3cm vertical thickness (Z)
 
-      // Ankle position in MuJoCo space
-      const ankleMj = childPosMj;
+      // childPosMj[2] is the resting height of the foot bone (ankle) in MuJoCo space (which matches Three.js world Y position of the ankle).
+      // To ensure the bottom face of the foot box geom (half-height = FOOT_HALF_HEIGHT) rests flush at ground level (MuJoCo Z = 0),
+      // the sole center relative to the ankle body must sit at Z = FOOT_HALF_HEIGHT - childPosMj[2].
+      const soleCenterZ = FOOT_HALF_HEIGHT - childPosMj[2];
 
       // Position box sole center in world space:
-      // X = same as ankle, Y = 6cm forward (-Y in MuJoCo space), Z = 1.5cm (so bottom sits flush at Z = 0 floor level)
+      // X = same as ankle, Y = 6cm forward (-Y in MuJoCo space), Z = solved.
       const pWorldOffset = new THREE.Vector3(
         0,
         -0.06,
-        FOOT_HALF_HEIGHT - ankleMj[2]
+        soleCenterZ
       );
 
       const pGeomLocal = pWorldOffset.clone().applyQuaternion(qBodyInv);

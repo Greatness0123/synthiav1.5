@@ -6,6 +6,8 @@ export interface ColliderContactState {
   inContact: boolean;
   impulse_magnitude: number;
   contact_normal: [number, number, number];
+  /** World-frame (MuJoCo coords) contact force in Newtons applied to this geom. */
+  contact_force: [number, number, number];
   max_force_magnitude: number;
   lastUpdate: number;
 }
@@ -15,6 +17,7 @@ export interface MuJoCoContactForceData {
   collider2: number;
   impulse_magnitude: number;
   contact_normal: [number, number, number];
+  contact_force: [number, number, number];
   max_force_magnitude: number;
   started: boolean;
   lastUpdate: number;
@@ -394,27 +397,45 @@ export class PhysicsEngine {
           // Retrieve contact force using the official C-API function mj_contactForce
           module.mj_contactForce(this.model, this.data, i, forceBuffer);
 
-          // Get force vector view from the DoubleBuffer
+          // Get force vector view from the DoubleBuffer.
+          // Components [normal, tangent1, tangent2] are expressed in the contact
+          // frame, whose basis is stored in contact.frame (columns = x,y,z axes
+          // of the contact frame in global MuJoCo coordinates).
           const forceView = forceBuffer.GetView();
-          // The first 3 elements correspond to normal force, and 2 friction forces in tangent directions
-          const normalForce = forceView[0];
-          const frictionForce1 = forceView[1];
-          const frictionForce2 = forceView[2];
+          const fNormal = forceView[0];
+          const fTan1 = forceView[1];
+          const fTan2 = forceView[2];
           const totalImpulse = Math.sqrt(
-            normalForce * normalForce +
-            frictionForce1 * frictionForce1 +
-            frictionForce2 * frictionForce2
+            fNormal * fNormal +
+            fTan1 * fTan1 +
+            fTan2 * fTan2
           );
 
           // contact.frame contains the 3x3 rotation matrix for the contact frame. The contact normal is the first column.
           const frame = contact.frame;
           const normal: [number, number, number] = [frame[0], frame[1], frame[2]];
 
-          const updateState = (geomId: number, normalDirectionMultiplier: number) => {
+          // Rebuild the world-frame (MuJoCo) contact force vector. This is the
+          // KEY missing piece for leg-driven locomotion: the lateral/friction
+          // components are what push the foot forward/backward against the
+          // floor, and the old code discarded them (only storing the scalar
+          // magnitude and the (mostly vertical) contact normal).
+          const forceWorldMj: [number, number, number] = [
+            frame[0] * fNormal + frame[3] * fTan1 + frame[6] * fTan2,
+            frame[1] * fNormal + frame[4] * fTan1 + frame[7] * fTan2,
+            frame[2] * fNormal + frame[5] * fTan1 + frame[8] * fTan2,
+          ];
+
+          const updateState = (geomId: number, normalDirectionMultiplier: number, forceMultiplier: number) => {
             const mappedNormal: [number, number, number] = [
               normal[0] * normalDirectionMultiplier,
               normal[1] * normalDirectionMultiplier,
               normal[2] * normalDirectionMultiplier
+            ];
+            const mappedForce: [number, number, number] = [
+              forceWorldMj[0] * forceMultiplier,
+              forceWorldMj[1] * forceMultiplier,
+              forceWorldMj[2] * forceMultiplier,
             ];
 
             const existing = this.contactForceRegistry.get(geomId);
@@ -422,6 +443,7 @@ export class PhysicsEngine {
               existing.inContact = true;
               existing.impulse_magnitude = totalImpulse;
               existing.contact_normal = mappedNormal;
+              existing.contact_force = mappedForce;
               existing.max_force_magnitude = totalImpulse;
               existing.lastUpdate = now;
             } else {
@@ -429,15 +451,17 @@ export class PhysicsEngine {
                 inContact: true,
                 impulse_magnitude: totalImpulse,
                 contact_normal: mappedNormal,
+                contact_force: mappedForce,
                 max_force_magnitude: totalImpulse,
                 lastUpdate: now
               });
             }
           };
 
-          // Update states for both geoms involved in the contact
-          updateState(geom1, 1);
-          updateState(geom2, -1);
+          // Update states for both geoms involved in the contact.
+          // mj_contactForce returns the force applied to geom1; geom2 receives -force.
+          updateState(geom1, 1, 1);
+          updateState(geom2, -1, -1);
         }
       } finally {
         // Free DoubleBuffer memory to avoid WASM leaks

@@ -473,51 +473,92 @@ sendPose('Sneeze', {
   'mixamoriglefthandpinky1':   30 * DEG, 'mixamoriglefthandpinky2':   40 * DEG, 'mixamoriglefthandpinky3':   25 * DEG,
 });
 
-sendSequence('Walk Cycle: 1 Full Stride', [
+// Realistic gait — leg-driven, no root motion. Sign conventions (see guide):
+//   hip +X = flex forward, -X = extend back; knee scalar - = bend;
+//   foot/ankle -X = plantarflexion (toe-off push against the floor).
+// Ground contact comes from the foot geoms (now authored flush with the
+// floor), the GRF injector converts the friction force into capsule qvel.
+sendSequence('Walk Forward: 3-Step Gait (GRF-driven)', [
   { timeOffsetMs: 0, overrides: {
     'mixamorigrightupleg': [0, 0, 0],   'mixamorigleftupleg': [0, 0, 0],
     'mixamorigrightleg': 0,             'mixamorigleftleg': 0,
     'mixamorigrightfoot': [0, 0, 0],   'mixamorigleftfoot': [0, 0, 0],
     'mixamorigrightarm': [75 * DEG, 0, 0],
     'mixamorigleftarm':  [75 * DEG, 0, 0],
+    'mixamorigspine':    [5 * DEG, 0, 0],
   }},
-  { timeOffsetMs: 250, overrides: {
-    'mixamorigrightupleg': [25 * DEG, 0, 0],
-    'mixamorigrightleg':  -25 * DEG,
-    'mixamorigrightfoot': [-10 * DEG, 0, 0],
-    'mixamorigleftupleg':  [-5 * DEG, 0, 0],
-    'mixamorigleftleg':    -5 * DEG,
-    'mixamorigleftfoot':   [0, 0, 0],
-    'mixamorigrightarm': [0, 0, -30 * DEG],
-    'mixamorigleftarm':  [0, 0,  30 * DEG],
-    'mixamorigspine':    [3 * DEG, 0, 0],
+  // Step 1 — left push-off + right swing
+  { timeOffsetMs: 150, overrides: {
+    'mixamorigleftupleg':  [-12 * DEG, 0, 0],  'mixamorigleftleg':  -18 * DEG,
+    'mixamorigleftfoot':   [-18 * DEG, 0, 0],  // plantarflexion → push against floor
+    'mixamorigrightupleg': [24 * DEG, 0, 0],   'mixamorigrightleg': -45 * DEG,
+    'mixamorigrightfoot':  [6 * DEG, 0, 0],    // dorsiflex for clearance
+    'mixamorigrightarm':   [10 * DEG, 0, 22 * DEG],  // arm back opposite leg
+    'mixamorigleftarm':    [10 * DEG, 0, -22 * DEG],
+    'mixamorigspine':      [5 * DEG, 0, 0],
   }},
-  { timeOffsetMs: 500, overrides: {
-    'mixamorigrightupleg': [5 * DEG, 0, 0],
-    'mixamorigrightleg':   -5 * DEG,
-    'mixamorigrightfoot':  [10 * DEG, 0, 0],
-    'mixamorigleftupleg': [-15 * DEG, 0, 0],
-    'mixamorigleftleg':   -25 * DEG,
-    'mixamorigleftfoot':   [-5 * DEG, 0, 0],
-    'mixamorigrightarm': [10 * DEG, 0, 0],
-    'mixamorigleftarm':  [10 * DEG, 0, 0],
-    'mixamorigspine':    [3 * DEG, 0, 0],
+  { timeOffsetMs: 300, overrides: {
+    'mixamorigleftupleg':  [-16 * DEG, 0, 0],  'mixamorigleftleg':  -14 * DEG,
+    'mixamorigleftfoot':   [-20 * DEG, 0, 0],  // strong toe-off
+    'mixamorigrightupleg': [30 * DEG, 0, 0],   'mixamorigrightleg': -60 * DEG,
+    'mixamorigrightfoot':  [4 * DEG, 0, 0],
+    'mixamorigrightarm':   [10 * DEG, 0, 30 * DEG],
+    'mixamorigleftarm':    [10 * DEG, 0, -30 * DEG],
+    'mixamorigspine':      [5 * DEG, 0, 0],
+  }},
+  // Step 1 — right heel strike; step 2 — left swing starts
+  { timeOffsetMs: 450, overrides: {
+    'mixamorigleftupleg':  [24 * DEG, 0, 0],   'mixamorigleftleg':  -45 * DEG,
+    'mixamorigleftfoot':   [6 * DEG, 0, 0],
+    'mixamorigrightupleg': [10 * DEG, 0, 0],   'mixamorigrightleg': -12 * DEG,
+    'mixamorigrightfoot':  [8 * DEG, 0, 0],    // heel strike / flat
+    'mixamorigrightarm':   [10 * DEG, 0, -22 * DEG],
+    'mixamorigleftarm':    [10 * DEG, 0, 22 * DEG],
+    'mixamorigspine':      [5 * DEG, 0, 0],
+  }},
+  // Step 2 — right push-off + left mid-swing
+  { timeOffsetMs: 600, overrides: {
+    'mixamorigrightupleg': [-12 * DEG, 0, 0],  'mixamorigrightleg': -20 * DEG,
+    'mixamorigrightfoot':  [-18 * DEG, 0, 0],
+    'mixamorigleftupleg':  [30 * DEG, 0, 0],   'mixamorigleftleg':  -60 * DEG,
+    'mixamorigleftfoot':   [4 * DEG, 0, 0],
+    'mixamorigrightarm':   [10 * DEG, 0, 22 * DEG],
+    'mixamorigleftarm':    [10 * DEG, 0, -22 * DEG],
+    'mixamorigspine':      [5 * DEG, 0, 0],
   }},
   { timeOffsetMs: 750, overrides: {
-    'mixamorigrightupleg': [-10 * DEG, 0, 0],
-    'mixamorigrightleg':   -15 * DEG,
-    'mixamorigrightfoot':  [0, 0, 0],
-    'mixamorigleftupleg':  [30 * DEG, 0, 0],
-    'mixamorigleftleg':   -30 * DEG,
-    'mixamorigleftfoot':  [-10 * DEG, 0, 0],
-    'mixamorigrightarm': [0, 0, 30 * DEG],
-    'mixamorigleftarm':  [0, 0, -30 * DEG],
-    'mixamorigspine':    [3 * DEG, 0, 0],
+    'mixamorigrightupleg': [-16 * DEG, 0, 0],  'mixamorigrightleg': -14 * DEG,
+    'mixamorigrightfoot':  [-20 * DEG, 0, 0],
+    'mixamorigleftupleg':  [24 * DEG, 0, 0],   'mixamorigleftleg':  -45 * DEG,
+    'mixamorigleftfoot':   [6 * DEG, 0, 0],
+    'mixamorigrightarm':   [10 * DEG, 0, 30 * DEG],
+    'mixamorigleftarm':    [10 * DEG, 0, -30 * DEG],
+    'mixamorigspine':      [5 * DEG, 0, 0],
   }},
-  { timeOffsetMs: 1000, overrides: {
-    'mixamorigrightupleg': [0, 0, 0], 'mixamorigleftupleg': [0, 0, 0],
-    'mixamorigrightleg': 0,           'mixamorigleftleg': 0,
-    'mixamorigrightfoot': [0, 0, 0], 'mixamorigleftfoot': [0, 0, 0],
+  // Step 2 — left heel strike; step 3 — right swing starts
+  { timeOffsetMs: 900, overrides: {
+    'mixamorigleftupleg':  [10 * DEG, 0, 0],   'mixamorigleftleg':  -12 * DEG,
+    'mixamorigleftfoot':   [8 * DEG, 0, 0],
+    'mixamorigrightupleg': [24 * DEG, 0, 0],   'mixamorigrightleg': -45 * DEG,
+    'mixamorigrightfoot':  [6 * DEG, 0, 0],
+    'mixamorigrightarm':   [10 * DEG, 0, -22 * DEG],
+    'mixamorigleftarm':    [10 * DEG, 0, 22 * DEG],
+    'mixamorigspine':      [5 * DEG, 0, 0],
+  }},
+  // Step 3 push-off, then settle to a relaxed stance
+  { timeOffsetMs: 1050, overrides: {
+    'mixamorigrightupleg': [-12 * DEG, 0, 0],  'mixamorigrightleg': -20 * DEG,
+    'mixamorigrightfoot':  [-18 * DEG, 0, 0],
+    'mixamorigleftupleg':  [30 * DEG, 0, 0],   'mixamorigleftleg':  -60 * DEG,
+    'mixamorigleftfoot':   [4 * DEG, 0, 0],
+    'mixamorigrightarm':   [10 * DEG, 0, 22 * DEG],
+    'mixamorigleftarm':    [10 * DEG, 0, -22 * DEG],
+    'mixamorigspine':      [5 * DEG, 0, 0],
+  }},
+  { timeOffsetMs: 1350, overrides: {
+    'mixamorigrightupleg': [0, 0, 0],   'mixamorigleftupleg': [0, 0, 0],
+    'mixamorigrightleg': 0,             'mixamorigleftleg': 0,
+    'mixamorigrightfoot': [0, 0, 0],   'mixamorigleftfoot': [0, 0, 0],
     'mixamorigrightarm': [75 * DEG, 0, 0],
     'mixamorigleftarm':  [75 * DEG, 0, 0],
     'mixamorigspine': 0,

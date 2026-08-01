@@ -64,10 +64,10 @@ export const SYNTHIA_RIG_CONSTRAINTS: Record<string, JointLimit> = (() => {
   }
 
   // ZONE 4: LEGS AND LOWER EXTREMITIES
-  map['mixamorigleftupleg'] = { dof: 3, x: [-2.094, 2.094], y: [-2.094, 2.094], z: [-2.094, 2.094], allowance: { locomotionCap: 0.78 } };
-  map['mixamorigrightupleg'] = { dof: 3, x: [-2.094, 2.094], y: [-2.094, 2.094], z: [-2.094, 2.094], allowance: { locomotionCap: 0.78 } };
-  map['mixamorigleftleg'] = { dof: 1, x: [-2.618, 0.0], y: [0.0, 0.0], z: [0.0, 0.0], allowance: { locomotionCap: 0.80 } };
-  map['mixamorigrightleg'] = { dof: 1, x: [-2.618, 0.0], y: [0.0, 0.0], z: [0.0, 0.0], allowance: { locomotionCap: 0.80 } };
+  map['mixamorigleftupleg'] = { dof: 3, x: [-2.094, 2.094], y: [-2.094, 2.094], z: [-2.094, 2.094], allowance: { locomotionCap: 1.0 } };
+  map['mixamorigrightupleg'] = { dof: 3, x: [-2.094, 2.094], y: [-2.094, 2.094], z: [-2.094, 2.094], allowance: { locomotionCap: 1.0 } };
+  map['mixamorigleftleg'] = { dof: 1, x: [-2.618, 0.0], y: [0.0, 0.0], z: [0.0, 0.0], allowance: { locomotionCap: 1.0 } };
+  map['mixamorigrightleg'] = { dof: 1, x: [-2.618, 0.0], y: [0.0, 0.0], z: [0.0, 0.0], allowance: { locomotionCap: 1.0 } };
   map['mixamorigleftfoot'] = { dof: 2, x: [-0.785, 0.785], y: [0.0, 0.0], z: [-0.785, 0.785] };
   map['mixamorigrightfoot'] = { dof: 2, x: [-0.785, 0.785], y: [0.0, 0.0], z: [-0.785, 0.785] };
   map['mixamoriglefttoebase'] = { dof: 1, x: [-1.745, 0.0], y: [0.0, 0.0], z: [0.0, 0.0] };

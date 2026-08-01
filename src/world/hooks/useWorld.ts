@@ -1118,6 +1118,11 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
   }, [worldStore.spawnPoint]);
 
   // ── Root Motion Event Handler ────────────────────────────────────────
+  // Converts root-motion deltas into a velocity impulse on the capsule
+  // freejoint (via BodyProxy.setLinearVelocity). This is NOT a teleport:
+  // MuJoCo integrates the velocity forward, so the body is pushed by the
+  // requested motion instead of being instantly relocated.
+  const ROOT_MOTION_VELOCITY_GAIN = 6.0;
   useEffect(() => {
     const handleRootMotion = (e: Event) => {
       const detail = (e as CustomEvent).detail || {};
@@ -1125,8 +1130,11 @@ export const useWorld = (containerRef: React.RefObject<HTMLDivElement>) => {
       if (worldStore.bodyType !== 'humanoid' || !humanoidPhysicsBinderRef.current) return;
       const capsuleBody = humanoidPhysicsBinderRef.current.getCapsuleBody();
       if (!capsuleBody || !capsuleBody.isValid()) return;
-      const t = capsuleBody.translation();
-      capsuleBody.setTranslation({ x: t.x + dx, y: t.y, z: t.z + dz }, true);
+      capsuleBody.setLinearVelocity({
+        x: dx * ROOT_MOTION_VELOCITY_GAIN,
+        y: 0,
+        z: dz * ROOT_MOTION_VELOCITY_GAIN,
+      });
     };
     window.addEventListener('synthia:rootMotion', handleRootMotion);
     return () => { window.removeEventListener('synthia:rootMotion', handleRootMotion); };

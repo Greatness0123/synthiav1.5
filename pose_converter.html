@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Synthia Pose Converter — Model Data to Diagnostic JS Converter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(18, 26, 43, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+      --text: #f3f4f6;
+      --text-dim: #9ca3af;
+      --text-muted: #6b7280;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --code-bg: #080c14;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.12) 0%, transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.08) 0%, transparent 40%);
+      background-attachment: fixed;
+    }
+
+    header {
+      padding: 2rem 3rem;
+      border-bottom: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+      font-weight: 700;
+      font-size: 0.85rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      letter-spacing: 0.05em;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    main {
+      flex: 1;
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2.5rem 2rem;
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 2rem;
+    }
+
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.75rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .drop-zone {
+      border: 2px dashed rgba(99, 102, 241, 0.4);
+      border-radius: 12px;
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      background: rgba(99, 102, 241, 0.03);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.08);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .drop-zone svg {
+      width: 42px;
+      height: 42px;
+      stroke: var(--accent);
+      stroke-width: 1.5;
+      fill: none;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      box-shadow: 0 4px 12px var(--accent-glow);
+    }
+
+    .btn:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      box-shadow: none;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .opts-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.8rem;
+    }
+
+    .opt-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      color: var(--text-dim);
+    }
+
+    input[type="checkbox"] {
+      accent-color: var(--accent);
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .output-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-height: 500px;
+    }
+
+    .output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .code-container {
+      flex: 1;
+      position: relative;
+      background: var(--code-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    textarea {
+      width: 100%;
+      height: 100%;
+      min-height: 500px;
+      background: transparent;
+      border: none;
+      color: #e5e7eb;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      line-height: 1.6;
+      padding: 1.25rem;
+      resize: none;
+      outline: none;
+    }
+
+    .file-info {
+      font-size: 0.85rem;
+      color: var(--success);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(16, 185, 129, 0.1);
+      padding: 0.5rem 0.8rem;
+      border-radius: 6px;
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    footer {
+      padding: 1.5rem;
+      text-align: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      border-top: 1px solid var(--card-border);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo-area">
+      <span class="logo-badge">SYNTHIA</span>
+      <h1>Model Pose to Diagnostic JS Converter</h1>
+    </div>
+    <div>
+      <span style="font-size: 0.85rem; color: var(--text-dim)">Convert <code>/model data</code> JSON files directly into <code>sendPose()</code> diagnostic code</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="panel-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Upload Model Data File
+      </div>
+
+      <div class="drop-zone" id="dropZone">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/></svg>
+        <div>
+          <strong style="display: block; font-size: 0.95rem; margin-bottom: 0.2rem;">Drop JSON motion file here</strong>
+          <span style="font-size: 0.8rem; color: var(--text-muted)">Supports static pose JSON or sequence JSON</span>
+        </div>
+        <input type="file" id="fileInput" class="file-input" accept=".json">
+      </div>
+
+      <div id="fileStatus"></div>
+
+      <div class="opts-group">
+        <div class="opt-row">
+          <label for="optDegree">Output Angles in Degrees (* DEG)</label>
+          <input type="checkbox" id="optDegree" checked>
+        </div>
+        <div class="opt-row">
+          <label for="optIgnoreZeros">Omit 0° joints</label>
+          <input type="checkbox" id="optIgnoreZeros" checked>
+        </div>
+        <div class="opt-row">
+          <label for="optSampleStep">Sequence Step (Frames)</label>
+          <input type="number" id="optSampleStep" value="2" min="1" max="10" style="width: 50px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); color: white; border-radius: 4px; padding: 2px 4px; text-align: center;">
+        </div>
+      </div>
+
+      <button class="btn" id="btnConvert" style="width: 100%;">
+        Convert to Diagnostic JS
+      </button>
+    </section>
+
+    <section class="panel output-area">
+      <div class="output-header">
+        <div class="panel-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          Generated Diagnostic JavaScript Code
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button class="btn btn-secondary" id="btnCopy" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Copy Code</button>
+          <button class="btn btn-secondary" id="btnDownload" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Download .js</button>
+        </div>
+      </div>
+
+      <div class="code-container">
+        <textarea id="codeOutput" readonly placeholder="// Upload a JSON file from /model data to generate diagnostic sendPose() or sendSequence() code..."></textarea>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    Synthia Motion Data Converter &bull; Converts Three.js / Mixamo Skeleton Exporter JSON to <code>sendPose()</code> & <code>sendSequence()</code>
+  </footer>
+
+  <script>
+    // Quaternion to Euler (XYZ order) conversion in radians
+    function quatToEulerXYZ(x, y, z, w) {
+      const euler = { x: 0, y: 0, z: 0 };
+      
+      // Roll (x-axis rotation)
+      const sinr_cosp = 2 * (w * x + y * z);
+      const cosr_cosp = 1 - 2 * (x * x + y * y);
+      euler.x = Math.atan2(sinr_cosp, cosr_cosp);
+
+      // Pitch (y-axis rotation)
+      const sinp = 2 * (w * y - z * x);
+      if (Math.abs(sinp) >= 1) {
+        euler.y = Math.sign(sinp) * (Math.PI / 2);
+      } else {
+        euler.y = Math.asin(sinp);
+      }
+
+      // Yaw (z-axis rotation)
+      const siny_cosp = 2 * (w * z + x * y);
+      const cosy_cosp = 1 - 2 * (y * y + z * z);
+      euler.z = Math.atan2(siny_cosp, cosy_cosp);
+
+      return euler;
+    }
+
+    // Bone mapping from Mixamo name variants to canonical Synthia keys
+    function mapBoneName(rawName) {
+      if (!rawName) return null;
+      let name = rawName.toLowerCase().replace(/[:_]/g, '');
+      if (name.startsWith('mixamorig')) {
+        return name; // Already canonical
+      }
+      return 'mixamorig' + name;
+    }
+
+    let loadedJSON = null;
+    let loadedFileName = '';
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileStatus = document.getElementById('fileStatus');
+    const codeOutput = document.getElementById('codeOutput');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        handleFile(e.target.files[0]);
+      }
+    });
+
+    function cleanLooseJSON(str) {
+      // Fix missing commas between properties: e.g. "pose_name":"foo"\n "rig_name" -> "pose_name":"foo",\n "rig_name"
+      let cleaned = str.replace(/("(?:[^"\\]|\\.)*"\s*:\s*(?:"(?:[^"\\]|\\.)*"|[\d.eE+-]+|true|false|null))\s*(\r?\n\s*")/g, '$1,\n$2');
+      // Fix semicolons after properties: e.g. "name":"running animation sample"; -> "name":"running animation sample",
+      cleaned = cleaned.replace(/("(?:[^"\\]|\\.)*"\s*:\s*(?:"(?:[^"\\]|\\.)*"|[\d.eE+-]+|true|false|null));/g, '$1,');
+      // Remove trailing commas before closing braces/brackets
+      cleaned = cleaned.replace(/,(\s*[\}\]])/g, '$1');
+      return cleaned;
+    }
+
+    function handleFile(file) {
+      loadedFileName = file.name;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const rawText = evt.target.result;
+        try {
+          loadedJSON = JSON.parse(rawText);
+        } catch (e1) {
+          try {
+            // Attempt lenient repair for missing commas or rogue semicolons
+            const repairedText = cleanLooseJSON(rawText);
+            loadedJSON = JSON.parse(repairedText);
+          } catch (err) {
+            alert('Invalid JSON file: ' + err.message);
+            return;
+          }
+        }
+        fileStatus.innerHTML = `<div class="file-info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Loaded: ${file.name}</div>`;
+        convertJSON();
+      };
+      reader.readAsText(file);
+    }
+
+    document.getElementById('btnConvert').addEventListener('click', convertJSON);
+
+    function convertJSON() {
+      if (!loadedJSON) {
+        alert('Please upload a model JSON file first!');
+        return;
+      }
+
+      const useDegree = document.getElementById('optDegree').checked;
+      const ignoreZeros = document.getElementById('optIgnoreZeros').checked;
+      const sampleStep = parseInt(document.getElementById('optSampleStep').value, 10) || 2;
+
+      let code = '';
+
+      // Check if file is Static pose JSON or Sequenced Animation JSON
+      if (loadedJSON.joints && Array.isArray(loadedJSON.joints)) {
+        // STATIC POSE FILE
+        const poseName = loadedJSON.pose_name || loadedFileName.replace('.json', '');
+        const jointOverrides = {};
+
+        loadedJSON.joints.forEach(j => {
+          const bone = mapBoneName(j.name);
+          if (!bone) return;
+
+          let rx = 0, ry = 0, rz = 0;
+          if (j.local && j.local.rotationEuler) {
+            rx = j.local.rotationEuler.x;
+            ry = j.local.rotationEuler.y;
+            rz = j.local.rotationEuler.z;
+          } else if (j.local && j.local.quaternion) {
+            const q = j.local.quaternion;
+            const e = quatToEulerXYZ(q.x, q.y, q.z, q.w);
+            rx = e.x; ry = e.y; rz = e.z;
+          }
+
+          if (useDegree) {
+            rx = Math.round(rx * (180 / Math.PI));
+            ry = Math.round(ry * (180 / Math.PI));
+            rz = Math.round(rz * (180 / Math.PI));
+          }
+
+          if (ignoreZeros && rx === 0 && ry === 0 && rz === 0) return;
+
+          if (ry === 0 && rz === 0) {
+            jointOverrides[bone] = useDegree ? `${rx} * DEG` : rx.toFixed(4);
+          } else {
+            jointOverrides[bone] = useDegree 
+              ? `[${rx} * DEG, ${ry} * DEG, ${rz} * DEG]`
+              : `[${rx.toFixed(4)}, ${ry.toFixed(4)}, ${rz.toFixed(4)}]`;
+          }
+        });
+
+        code = `// Diagnostic Pose generated from: ${loadedFileName}\n`;
+        code += `sendPose('${poseName}', {\n`;
+        for (const [k, v] of Object.entries(jointOverrides)) {
+          code += `  '${k}': ${v},\n`;
+        }
+        code += `});\n`;
+
+      } else if (loadedJSON.animation && Array.isArray(loadedJSON.animation)) {
+        // SEQUENCED ANIMATION FILE
+        const animName = (loadedJSON.metadata && loadedJSON.metadata.name) || loadedFileName.replace('.json', '');
+        const fps = (loadedJSON.metadata && loadedJSON.metadata.fps) || 30;
+        const frameMs = Math.round(1000 / fps);
+
+        const sequenceFrames = [];
+
+        loadedJSON.animation.forEach((frameObj, idx) => {
+          if (idx % sampleStep !== 0 && idx !== loadedJSON.animation.length - 1) return;
+
+          const timeOffsetMs = frameObj.time !== undefined ? Math.round(frameObj.time * 1000) : (idx * frameMs);
+          const overrides = {};
+
+          if (frameObj.joints) {
+            for (const [rawBone, data] of Object.entries(frameObj.joints)) {
+              const bone = mapBoneName(rawBone);
+              if (!bone) continue;
+
+              let rx = 0, ry = 0, rz = 0;
+              if (data.rot) {
+                // Quaternion [x, y, z, w]
+                const e = quatToEulerXYZ(data.rot[0], data.rot[1], data.rot[2], data.rot[3]);
+                rx = e.x; ry = e.y; rz = e.z;
+              }
+
+              if (useDegree) {
+                rx = Math.round(rx * (180 / Math.PI));
+                ry = Math.round(ry * (180 / Math.PI));
+                rz = Math.round(rz * (180 / Math.PI));
+              }
+
+              if (ignoreZeros && rx === 0 && ry === 0 && rz === 0) continue;
+
+              if (ry === 0 && rz === 0) {
+                overrides[bone] = useDegree ? `${rx} * DEG` : rx.toFixed(4);
+              } else {
+                overrides[bone] = useDegree 
+                  ? `[${rx} * DEG, ${ry} * DEG, ${rz} * DEG]`
+                  : `[${rx.toFixed(4)}, ${ry.toFixed(4)}, ${rz.toFixed(4)}]`;
+              }
+            }
+          }
+
+          sequenceFrames.push({ timeOffsetMs, overrides });
+        });
+
+        code = `// Diagnostic Sequence generated from: ${loadedFileName}\n`;
+        code += `sendSequence('${animName}', [\n`;
+        sequenceFrames.forEach(f => {
+          code += `  {\n`;
+          code += `    timeOffsetMs: ${f.timeOffsetMs},\n`;
+          code += `    overrides: {\n`;
+          for (const [k, v] of Object.entries(f.overrides)) {
+            code += `      '${k}': ${v},\n`;
+          }
+          code += `    }\n`;
+          code += `  },\n`;
+        });
+        code += `]);\n`;
+      } else {
+        code = `// Unknown file format in ${loadedFileName}`;
+      }
+
+      codeOutput.value = code;
+    }
+
+    document.getElementById('btnCopy').addEventListener('click', () => {
+      codeOutput.select();
+      document.execCommand('copy');
+      alert('Code copied to clipboard!');
+    });
+
+    document.getElementById('btnDownload').addEventListener('click', () => {
+      const blob = new Blob([codeOutput.value], { type: 'text/javascript' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = (loadedFileName ? loadedFileName.replace('.json', '') : 'converted_pose') + '_diagnostic.js';
+      a.click();
+    });
+  </script>
+</body>
+</html>
